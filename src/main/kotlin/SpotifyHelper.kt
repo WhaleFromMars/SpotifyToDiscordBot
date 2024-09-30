@@ -15,7 +15,6 @@ import kotlin.random.Random
 object SpotifyHelper {
     private val dotEnv = Dotenv.load()
     private val PLAYBACK_DEVICE_NAME = dotEnv["SPOTIFY_DEVICE_NAME"]
-    private val REDIRECT_URI = dotEnv["SPOTIFY_REDIRECT_URI"]
     private const val CACHE_FILE = ".spotifyCache"
 
     //we handle our own queue because spotify doesn't support removing items from the queue
@@ -64,16 +63,17 @@ object SpotifyHelper {
     private suspend fun initialiseSpotify() {
         val clientId = dotEnv["SPOTIFY_CLIENT_ID"]
         val clientSecret = dotEnv["SPOTIFY_CLIENT_SECRET"]
+        val redirectURI = dotEnv["SPOTIFY_REDIRECT_URI"]
 
-        require(clientId != "" && clientSecret != "") {
-            "Missing required environment variables"
-        }
+        require(clientId != "") { "Missing environment variable: SPOTIFY_CLIENT_ID" }
+        require(clientSecret != "") { "Missing environment variable: SPOTIFY_CLIENT_SECRET" }
+        require(redirectURI != "") { "Missing environment variable: SPOTIFY_REDIRECT_URI" }
 
         val cachedRefreshToken = loadRefreshTokenFromCache()
 
         if (cachedRefreshToken != null) {
             try {
-                spotify = spotifyClientApi(clientId, clientSecret, REDIRECT_URI) {
+                spotify = spotifyClientApi(clientId, clientSecret, redirectURI) {
                     authorization = SpotifyUserAuthorization(refreshTokenString = cachedRefreshToken)
                 }.build()
                 println("Successfully authenticated using cached refresh token.")
@@ -91,11 +91,11 @@ object SpotifyHelper {
             SpotifyScope.UserModifyPlaybackState,
             SpotifyScope.UserReadCurrentlyPlaying, //might not be needed as readPlayback encompasses this
             clientId = clientId,
-            redirectUri = REDIRECT_URI,
+            redirectUri = redirectURI,
             codeChallenge = pkceCodeChallenge
         )
 
-        println("Please open the following URL in your browser:")
+        println("Please open the following URL in your browser if it didnt open automatically:")
         println(authorizationUrl)
 
         if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
@@ -105,7 +105,7 @@ object SpotifyHelper {
         val code = waitForAuthorizationCode()
 
         spotify = spotifyClientPkceApi(
-            clientId, REDIRECT_URI, code, pkceCodeVerifier
+            clientId, redirectURI, code, pkceCodeVerifier
         ).build()
 
         // Save the refresh token for future use
@@ -159,7 +159,9 @@ object SpotifyHelper {
 
     private suspend fun initialisePlaybackDevice() {
         val devices = spotify.player.getDevices()
-        println("Devices: ${devices.map { it.name }}")
+        println("Possible Playback Devices: ${devices.map { it.name }}")
+        require(PLAYBACK_DEVICE_NAME != null) { "PLAYBACK_DEVICE_NAME environment variable not set." }
+
         playbackDeviceID = devices.find { it.name == PLAYBACK_DEVICE_NAME }?.id
             ?: throw IllegalStateException("Playback device not found")
         println("Device Connected: $playbackDeviceID")
