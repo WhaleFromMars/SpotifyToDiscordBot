@@ -12,8 +12,9 @@ import net.dv8tion.jda.api.utils.cache.CacheFlag
 
 object PeopleBot : ListenerAdapter() {
     val dotEnv = Dotenv.load()
-    const val GUILD_ID = "893863418140983337"
+    val GUILD_ID = dotEnv["DISCORD_GUILD_ID"]
     private val token = dotEnv["DISCORD_BOT_TOKEN"]
+
 
     private val jda = JDABuilder.create(
         token,
@@ -31,6 +32,8 @@ object PeopleBot : ListenerAdapter() {
     ).setMemberCachePolicy(MemberCachePolicy.VOICE).addEventListeners(this).build()
 
     init {
+        require(token != "") { "Missing environment variable: DISCORD_BOT_TOKEN" }
+        require(GUILD_ID != "") { "Missing environment variable: DISCORD_GUILD_ID" }
         SpotifyHelper
         registerCommands()
     }

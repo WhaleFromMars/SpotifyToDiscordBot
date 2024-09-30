@@ -3,11 +3,16 @@ import java.nio.ByteBuffer
 import javax.sound.sampled.*
 
 class SoundAudioHandler : AudioSendHandler {
-    private val cableName = "CABLE Output (VB-Audio Virtual Cable)"
+    private val cableName = PeopleBot.dotEnv["CABLE_NAME"]
+
     private var line: TargetDataLine? = null
     private val bufferSize = 960 * 2 // Frames per buffer (20ms of audio at 48kHz) * 2 channels
     private val buffer = ByteArray(bufferSize * 2) // *2 because we're using 16-bit samples
     private var lastFrame: ByteBuffer? = null
+
+    init {
+        require(cableName != null) { "CABLE_NAME environment variable not set." }
+    }
 
     fun startCapture(): Boolean {
         try {
