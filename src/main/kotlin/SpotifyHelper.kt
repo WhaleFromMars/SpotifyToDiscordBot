@@ -14,8 +14,8 @@ import kotlin.random.Random
 
 object SpotifyHelper {
     private val dotEnv = Dotenv.load()
-    private const val PLAYBACK_DEVICE_NAME = "DESKTOP-0OFJKBN"
-    private const val REDIRECT_URI = "http://localhost:8080"
+    private val PLAYBACK_DEVICE_NAME = dotEnv["SPOTIFY_DEVICE_NAME"]
+    private val REDIRECT_URI = dotEnv["SPOTIFY_REDIRECT_URI"]
     private const val CACHE_FILE = ".spotifyCache"
 
     //we handle our own queue because spotify doesn't support removing items from the queue

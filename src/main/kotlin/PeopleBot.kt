@@ -18,7 +18,6 @@ object PeopleBot : ListenerAdapter() {
     private var isStreaming = false
     private var audioHandler = SoundAudioHandler
 
-
     private val jda = JDABuilder.create(
         token,
         GatewayIntent.GUILD_MEMBERS,
