@@ -57,8 +57,8 @@ object SpotifyHelper {
 
     suspend fun setVolume(volumePercent: Int) {
         if (isPremium) {
-        spotify.player.setVolume(volumePercent, deviceId = playbackDeviceID)
-            }
+            spotify.player.setVolume(volumePercent, deviceId = playbackDeviceID)
+        }
     }
 
     private suspend fun initialiseSpotify() {

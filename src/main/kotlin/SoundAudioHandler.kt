@@ -3,6 +3,7 @@ import java.nio.ByteBuffer
 import javax.sound.sampled.*
 
 class SoundAudioHandler : AudioSendHandler {
+    private val cableName = "CABLE Output (VB-Audio Virtual Cable)"
     private var line: TargetDataLine? = null
     private val bufferSize = 960 * 2 // Frames per buffer (20ms of audio at 48kHz) * 2 channels
     private val buffer = ByteArray(bufferSize * 2) // *2 because we're using 16-bit samples
@@ -18,12 +19,10 @@ class SoundAudioHandler : AudioSendHandler {
                 return false
             }
 
-            val mixer = AudioSystem.getMixerInfo()
-                .find { it.name == "CABLE Output (VB-Audio Virtual Cable)" }
-                ?.let { AudioSystem.getMixer(it) }
+            val mixer = AudioSystem.getMixerInfo().find { it.name == cableName }?.let { AudioSystem.getMixer(it) }
 
             if (mixer == null) {
-                println("CABLE Output (VB-Audio Virtual Cable) not found.")
+                println("$cableName not found.")
                 return false
             }
 

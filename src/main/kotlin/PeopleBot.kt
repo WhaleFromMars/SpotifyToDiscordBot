@@ -21,18 +21,14 @@ object PeopleBot : ListenerAdapter() {
         GatewayIntent.GUILD_MESSAGES,
         GatewayIntent.MESSAGE_CONTENT,
         GatewayIntent.GUILD_VOICE_STATES
-    )
-        .disableCache(
-            CacheFlag.ACTIVITY,
-            CacheFlag.EMOJI,
-            CacheFlag.STICKER,
-            CacheFlag.CLIENT_STATUS,
-            CacheFlag.ONLINE_STATUS,
-            CacheFlag.SCHEDULED_EVENTS
-        )
-        .setMemberCachePolicy(MemberCachePolicy.VOICE)
-        .addEventListeners(this)
-        .build()
+    ).disableCache(
+        CacheFlag.ACTIVITY,
+        CacheFlag.EMOJI,
+        CacheFlag.STICKER,
+        CacheFlag.CLIENT_STATUS,
+        CacheFlag.ONLINE_STATUS,
+        CacheFlag.SCHEDULED_EVENTS
+    ).setMemberCachePolicy(MemberCachePolicy.VOICE).addEventListeners(this).build()
 
     init {
         SpotifyHelper
@@ -45,8 +41,7 @@ object PeopleBot : ListenerAdapter() {
     private fun registerCommands() {
         jda.updateCommands().addCommands(
             Commands.slash("play", "Adds a song to the queue")
-                .addOption(OptionType.STRING, "song", "requires the song name or spotify url", true)
-                .setGuildOnly(true)
+                .addOption(OptionType.STRING, "song", "requires the song name or spotify url", true).setGuildOnly(true)
         ).apply { queue() }
 
     }
