@@ -15,6 +15,9 @@ object PeopleBot : ListenerAdapter() {
     val GUILD_ID = dotEnv["DISCORD_GUILD_ID"]
     private val token = dotEnv["DISCORD_BOT_TOKEN"]
 
+    private var isStreaming = false
+    private var audioHandler = SoundAudioHandler
+
 
     private val jda = JDABuilder.create(
         token,
@@ -37,9 +40,6 @@ object PeopleBot : ListenerAdapter() {
         SpotifyHelper
         registerCommands()
     }
-
-    private var isStreaming = false
-    private var audioHandler: SoundAudioHandler? = null
 
     private fun registerCommands() {
         jda.updateCommands().addCommands(
@@ -85,15 +85,14 @@ object PeopleBot : ListenerAdapter() {
         isStreaming = true
         val audioManager = guild.audioManager
 
-        val handler = SoundAudioHandler()
-        if (!handler.startCapture()) {
+
+        if (!audioHandler.startCapture()) {
             isStreaming = false
             event?.channel?.sendMessage("Failed to start audio capture.")?.queue()
             println("Failed to start audio capture.")
             return
         }
-        audioHandler = handler
-        audioManager.sendingHandler = handler
+        audioManager.sendingHandler = audioHandler
 
         println("Started streaming audio from CABLE Output (VB-Audio Virtual Cable)")
         event?.channel?.sendMessage("Started streaming audio from CABLE Output (VB-Audio Virtual Cable)")?.queue()
@@ -103,8 +102,7 @@ object PeopleBot : ListenerAdapter() {
         if (!isStreaming) return
 
         isStreaming = false
-        audioHandler?.stopCapture()
-        audioHandler = null
+        audioHandler.stopCapture()
         guild.audioManager.sendingHandler = null
         println("Stopped streaming")
     }
