@@ -11,11 +11,10 @@ Progress:
 - [ ] Basic queue functionality (cant rely on spotifys as it doesnt allow you to remove from queue)
   - [ ] Shuffle
   - [ ] Repeat song/queue
-- [ ] Rich Emned
+- [ ] Rich Embed
 - [ ] Control features
   - [ ] From embed
   - [ ] From command
-- [ ] Link to sources
 - [ ] Audio processing
 
 ## Prerequisites
