@@ -2,7 +2,27 @@
 
 ⚠️ **IMPORTANT: This project is for educational purposes only** ⚠️
 
-This proof-of-concept demonstrates streaming Spotify into a Discord voice chat. Please be aware of and respect all relevant terms of service, copyright laws, and licensing agreements when using or modifying this code.
+This proof-of-concept demonstrates streaming Spotify into a Discord voice chat, only one server may be connected to. Please be aware of and respect all relevant terms of service, copyright laws, and licensing agreements when using or modifying this code.
+
+Progress:
+- [x] Stream client to voice channel
+- [x] Authenticate spotify via local webserver/user input
+  - [ ] save token for automatic refresh between sessions
+- [ ] Basic queue functionality (cant rely on spotifys as it doesnt allow you to remove from queue)
+  - [ ] Shuffle
+  - [ ] Repeat song/queue
+- [ ] Rich Embed
+- [ ] Control features
+  - [ ] From embed
+  - [ ] From command
+- [ ] Audio processing
+- [ ] Tracking for a spotify wrapped alternative
+
+Far away: Non Premium Support:
+Either
+- [ ] Gui based python autoclick based (ass, only suitable if being ran on a stand alone device as requires gui on screen)
+or
+- [ ] fork SpotX and see if we can inject a locally accessible api like the now defunct spotilocal used to provide
 
 ## Prerequisites
 
@@ -39,6 +59,7 @@ This proof-of-concept demonstrates streaming Spotify into a Discord voice chat. 
 2. Open `.env` and fill in the following:
 ```env
 DISCORD_BOT_TOKEN=your_discord_bot_token_here
+DISCORD_GUILD_ID=your_servers_id_here
 SPOTIFY_CLIENT_ID=your_spotify_client_id_here
 SPOTIFY_CLIENT_SECRET=your_spotify_client_secret_here
 ```
@@ -59,7 +80,7 @@ SPOTIFY_CLIENT_SECRET=your_spotify_client_secret_here
 ## Notes
 
 - There is work-in-progress support for non-premium Spotify accounts
-- Linux support may be possible by using an alternative to Virtual Cables and adjusting the `cableName` in `SoundAudioHandler`
+- Linux support may be possible by using an alternative to Virtual Cables and adjusting the `cableName` in the .env
 - Mac? go beg daddy Tim ive got no clue
 
 ## Disclaimer
