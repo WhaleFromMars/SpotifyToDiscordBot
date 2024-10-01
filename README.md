@@ -16,6 +16,7 @@ Progress:
   - [ ] From embed
   - [ ] From command
 - [ ] Audio processing
+- [ ] Tracking for a spotify wrapped alternative
 
 Far away: Non Premium Support:
 Either
