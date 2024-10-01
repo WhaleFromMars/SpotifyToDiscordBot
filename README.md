@@ -17,6 +17,12 @@ Progress:
   - [ ] From command
 - [ ] Audio processing
 
+Far away: Non Premium Support:
+Either
+- [ ] Gui based python autoclick based (ass, only suitable if being ran on a stand alone device as requires gui on screen)
+or
+- [ ] fork SpotX and see if we can inject a locally accessible api like the now defunct spotilocal used to provide
+
 ## Prerequisites
 
 - A Spotify client (Premium recommended) running on the same device as the bot
