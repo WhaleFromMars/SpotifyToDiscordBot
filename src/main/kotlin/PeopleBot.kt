@@ -1,6 +1,10 @@
 import io.github.cdimascio.dotenv.Dotenv
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.entities.Guild
+import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.hooks.ListenerAdapter
@@ -16,7 +20,6 @@ object PeopleBot : ListenerAdapter() {
     private val token = dotEnv["DISCORD_BOT_TOKEN"]
 
     private var isStreaming = false
-    private var audioHandler = SoundAudioHandler
 
     private val jda = JDABuilder.create(
         token,
@@ -50,6 +53,12 @@ object PeopleBot : ListenerAdapter() {
 
     override fun onSlashCommandInteraction(event: SlashCommandInteractionEvent) {
         if (event.guild?.id != GUILD_ID) return
+        //if bot isnt in a channel, join author
+        CoroutineScope(Dispatchers.IO).launch {
+            when (event.name) {
+                "play" -> PeopleCommands.playCommandSlash(event)
+            }
+        }
 
         super.onSlashCommandInteraction(event)
     }
@@ -67,6 +76,14 @@ object PeopleBot : ListenerAdapter() {
         }
     }
 
+    override fun onCommandAutoCompleteInteraction(event: CommandAutoCompleteInteractionEvent) {
+        if (event.guild?.id != GUILD_ID) return
+
+        CoroutineScope(Dispatchers.IO).launch {
+            PeopleCommands.handleAutoComplete(event)
+        }
+    }
+
     private fun leaveVoiceChannel(guild: Guild) {
         val audioManager = guild.audioManager
         audioManager.closeAudioConnection()
@@ -74,7 +91,7 @@ object PeopleBot : ListenerAdapter() {
         println("Left voice channel")
     }
 
-    private fun startStreaming(guild: Guild, event: MessageReceivedEvent? = null) {
+    fun startStreaming(guild: Guild, event: MessageReceivedEvent? = null) {
         if (isStreaming) {
             println("Already streaming")
             event?.channel?.sendMessage("Already streaming")?.queue()
@@ -85,13 +102,13 @@ object PeopleBot : ListenerAdapter() {
         val audioManager = guild.audioManager
 
 
-        if (!audioHandler.startCapture()) {
+        if (!AudioStreamHandler.startCapture()) {
             isStreaming = false
             event?.channel?.sendMessage("Failed to start audio capture.")?.queue()
             println("Failed to start audio capture.")
             return
         }
-        audioManager.sendingHandler = audioHandler
+        audioManager.sendingHandler = AudioStreamHandler
 
         println("Started streaming audio from CABLE Output (VB-Audio Virtual Cable)")
         event?.channel?.sendMessage("Started streaming audio from CABLE Output (VB-Audio Virtual Cable)")?.queue()
@@ -101,7 +118,7 @@ object PeopleBot : ListenerAdapter() {
         if (!isStreaming) return
 
         isStreaming = false
-        audioHandler.stopCapture()
+        AudioStreamHandler.stopCapture()
         guild.audioManager.sendingHandler = null
         println("Stopped streaming")
     }

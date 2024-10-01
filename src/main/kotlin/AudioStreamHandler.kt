@@ -2,7 +2,7 @@ import net.dv8tion.jda.api.audio.AudioSendHandler
 import java.nio.ByteBuffer
 import javax.sound.sampled.*
 
-object SoundAudioHandler : AudioSendHandler {
+object AudioStreamHandler : AudioSendHandler {
     private val cableName = PeopleBot.dotEnv["CABLE_NAME"]
 
     private var line: TargetDataLine? = null

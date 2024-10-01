@@ -1,219 +1,124 @@
 import com.adamratzman.spotify.*
-import com.adamratzman.spotify.SpotifyException.BadRequestException
-import com.adamratzman.spotify.endpoints.client.ClientPlayerApi.PlayerRepeatState
-import com.adamratzman.spotify.models.SimpleTrack
 import io.github.cdimascio.dotenv.Dotenv
 import kotlinx.coroutines.*
-import java.awt.Desktop
-import java.io.File
-import java.net.ServerSocket
-import java.net.Socket
-import java.net.URI
-import kotlin.properties.Delegates
-import kotlin.random.Random
+import net.dv8tion.jda.api.EmbedBuilder
+import net.dv8tion.jda.api.entities.MessageEmbed
 
 object SpotifyHelper {
     private val dotEnv = Dotenv.load()
     private val PLAYBACK_DEVICE_NAME = dotEnv["SPOTIFY_DEVICE_NAME"]
-    private const val CACHE_FILE = ".spotifyCache"
 
-    //we handle our own queue because spotify doesn't support removing items from the queue
-    var queue: MutableList<SimpleTrack> = mutableListOf()
-    var previousSongs: MutableList<SimpleTrack> = mutableListOf()
-    var currentTrack: SimpleTrack? = null
+    // We handle our own queue because Spotify doesn't support removing items from the queue
+    var queue: MutableList<TrimmedTrack> = mutableListOf()
+    var previousSongs: MutableList<TrimmedTrack> = mutableListOf()
+    var currentTrack: TrimmedTrack? = null
 
     var maxProgress = 0
     var currentProgress = 0
 
-    private lateinit var spotify: SpotifyClientApi
-    private var isPremium = true
-    private var playbackDeviceID by Delegates.notNull<String>()
+    private lateinit var spotify: SpotifyAppApi
+
+    private val webSocketServer = SpotWebSocketServer(8080)
+    private var isPlaying = false
 
     init {
         runBlocking {
             initialiseSpotify()
-            initialisePlaybackDevice()
-            normaliseDeviceSettings()
+            webSocketServer.start()
         }
         initiatePlaybackLoop()
     }
 
-    fun addToQueue(track: SimpleTrack) {
+    fun sendLocalPauseCommand() {
+        webSocketServer.sendCommand("pause")
+        isPlaying = false
+    }
+
+    fun sendLocalPlayCommand() {
+        webSocketServer.sendCommand("play")
+        isPlaying = true
+    }
+
+    fun sendLocalPlayUriCommand(uri: String) {
+        webSocketServer.sendCommand("playUri", uri)
+        isPlaying = true
+    }
+
+    fun sendLocalSetVolumeCommand(volume: Int) {
+        webSocketServer.sendCommand("volume", volume.toString())
+    }
+
+    fun sendLocalSetRepeatCommand(repeatMode: Int) {
+        webSocketServer.sendCommand("repeat", repeatMode.toString())
+    }
+
+    fun sendLocalSetMuteCommand(mute: Boolean) {
+        webSocketServer.sendCommand("mute", mute.toString())
+    }
+
+    fun sendLocalSetShuffleCommand(shuffle: Boolean) {
+        webSocketServer.sendCommand("shuffle", shuffle.toString())
+    }
+
+    fun addToQueue(track: TrimmedTrack) {
         queue.add(track)
-    }
-
-    suspend fun pausePlayback() {
-        if (isPremium) {
-            spotify.player.pause(deviceId = playbackDeviceID)
-        }
-    }
-
-    suspend fun resumePlayback() {
-        if (isPremium) {
-            spotify.player.resume(deviceId = playbackDeviceID)
-        }
-    }
-
-    suspend fun setVolume(volumePercent: Int) {
-        if (isPremium) {
-            spotify.player.setVolume(volumePercent, deviceId = playbackDeviceID)
-        }
     }
 
     private suspend fun initialiseSpotify() {
         val clientId = dotEnv["SPOTIFY_CLIENT_ID"]
         val clientSecret = dotEnv["SPOTIFY_CLIENT_SECRET"]
-        val redirectURI = dotEnv["SPOTIFY_REDIRECT_URI"]
 
-        require(clientId != "") { "Missing environment variable: SPOTIFY_CLIENT_ID" }
-        require(clientSecret != "") { "Missing environment variable: SPOTIFY_CLIENT_SECRET" }
-        require(redirectURI != "") { "Missing environment variable: SPOTIFY_REDIRECT_URI" }
+        require(clientId.isNotEmpty()) { "Missing environment variable: SPOTIFY_CLIENT_ID" }
+        require(clientSecret.isNotEmpty()) { "Missing environment variable: SPOTIFY_CLIENT_SECRET" }
 
-        val cachedRefreshToken = loadRefreshTokenFromCache()
-
-        if (cachedRefreshToken != null) {
-            try {
-                spotify = spotifyClientApi(clientId, clientSecret, redirectURI) {
-                    authorization = SpotifyUserAuthorization(refreshTokenString = cachedRefreshToken)
-                }.build()
-                println("Successfully authenticated using cached refresh token.")
-                return
-            } catch (_: Exception) {
-                println("Failed to authenticate with cached refresh token. Initiating new authorization flow.")
-            }
-        }
-
-        val pkceCodeVerifier = generateCodeVerifier()
-        val pkceCodeChallenge = getSpotifyPkceCodeChallenge(pkceCodeVerifier)
-
-        val authorizationUrl = getSpotifyPkceAuthorizationUrl(
-            SpotifyScope.UserReadPlaybackState,
-            SpotifyScope.UserModifyPlaybackState,
-            SpotifyScope.UserReadCurrentlyPlaying, //might not be needed as readPlayback encompasses this
-            clientId = clientId,
-            redirectUri = redirectURI,
-            codeChallenge = pkceCodeChallenge
-        )
-
-        println("Please open the following URL in your browser if it didnt open automatically:")
-        println(authorizationUrl)
-
-        if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-            Desktop.getDesktop().browse(URI(authorizationUrl))
-        }
-
-        val code = waitForAuthorizationCode()
-
-        spotify = spotifyClientPkceApi(
-            clientId, redirectURI, code, pkceCodeVerifier
-        ).build()
-
-        // Save the refresh token for future use
-        saveRefreshTokenToCache(spotify.token.refreshToken)
-
-        println("Authorization successful. Refresh token saved.")
+        spotify = spotifyAppApi(clientId, clientSecret).build()
+        println("Spotify API initialized.")
     }
 
-    private fun loadRefreshTokenFromCache(): String? {
-        val file = File(CACHE_FILE)
-        return if (file.exists()) file.readText().trim() else null
-    }
-
-    private fun saveRefreshTokenToCache(refreshToken: String?) {
-        if (refreshToken != null) {
-            File(CACHE_FILE).writeText(refreshToken)
-        }
-    }
-
-    private fun waitForAuthorizationCode(): String {
-        return runBlocking {
-            withContext(Dispatchers.IO) {
-                var server: ServerSocket? = null
-                var clientSocket: Socket? = null
-                try {
-                    server = ServerSocket(8080)
-                    println("Waiting for authorization code...")
-                    clientSocket = server.accept()
-                    val response = clientSocket.getInputStream().bufferedReader().readLine()
-                    clientSocket.getOutputStream()
-                        .write("HTTP/1.1 200 OK\r\n\r\nAuthorization successful! You can close this window.".toByteArray())
-
-                    val code = response.substringAfter("code=").substringBefore(" ")
-                    println("Authorization code received.")
-                    code
-                } finally {
-                    try {
-                        clientSocket?.close()
-                    } catch (e: Exception) {
-                        println("Error closing client socket: ${e.message}")
-                    }
-                    try {
-                        server?.close()
-                    } catch (e: Exception) {
-                        println("Error closing server socket: ${e.message}")
-                    }
-                }
-            }
-        }
-    }
-
-    private suspend fun initialisePlaybackDevice() {
-        val devices = spotify.player.getDevices()
-        println("Possible Playback Devices: ${devices.map { it.name }}")
-        require(PLAYBACK_DEVICE_NAME != null) { "PLAYBACK_DEVICE_NAME environment variable not set." }
-
-        playbackDeviceID = devices.find { it.name == PLAYBACK_DEVICE_NAME }?.id
-            ?: throw IllegalStateException("Playback device not found")
-        println("Device Connected: $playbackDeviceID")
-    }
-
-    private suspend fun normaliseDeviceSettings() {
-        try {
-            spotify.player.setRepeatMode(PlayerRepeatState.Off, deviceId = playbackDeviceID)
-            spotify.player.toggleShuffle(false, deviceId = playbackDeviceID)
-            spotify.player.setVolume(100, deviceId = playbackDeviceID)
-        } catch (e: BadRequestException) {
-            isPremium = false
-            println("Failed to normalise device settings: ${e.message}")
-        }
-    }
-
-    private fun generateCodeVerifier(): String {
-        val characters = ('a'..'z') + ('A'..'Z') + ('0'..'9') + listOf('_', '.', '-', '~')
-        val length = Random.nextInt(43, 129)
-        return List(length) { characters.random() }.joinToString("")
+    private fun normaliseDeviceSettings() {
+        sendLocalSetRepeatCommand(0)
+        sendLocalSetShuffleCommand(false)
+        sendLocalSetVolumeCommand(100)
     }
 
     fun initiatePlaybackLoop() {
-        if (isPremium) {
-            CoroutineScope(Dispatchers.Default).launch {
-                while (true) {
-                    delay(1000)
-                    if (queue.isEmpty()) continue
+        CoroutineScope(Dispatchers.Default).launch {
+            while (true) {
+                delay(1000)
+                if (queue.isEmpty()) continue
 
-                    val playbackState = spotify.player.getCurrentlyPlaying()
-
-                    if (playbackState?.isPlaying != true) {
-                        if (currentTrack == null && queue.isNotEmpty()) {
-                            queue.removeAt(0).apply {
-                                currentTrack = this
-                                previousSongs.add(this)
-                                maxProgress = this.durationMs.toInt()
-                                spotify.player.startPlayback(
-                                    trackIdsToPlay = listOf(this.id), deviceId = playbackDeviceID
-                                )
-                            }
-                            currentProgress = 0
+                if (!isPlaying) {
+                    if (currentTrack == null) {
+                        queue.removeAt(0).apply {
+                            currentTrack = this
+                            previousSongs.add(this)
+                            maxProgress = this.duration
+                            sendLocalPlayUriCommand("spotify:track:${this.id}$")
                         }
-                    } else {
-                        currentProgress++
-                        if (currentProgress >= maxProgress) {
-                            currentTrack = null
-                            spotify.player.pause(deviceId = playbackDeviceID)
-                        }
+                        currentProgress = 0
+                    }
+                } else {
+                    currentProgress++
+                    if (currentProgress >= maxProgress) {
+                        currentTrack = null
+                        sendLocalPauseCommand()
                     }
                 }
             }
         }
+    }
+
+    suspend fun searchTrack(query: String, returnAmount: Int = 1): List<TrimmedTrack>? {
+        val tracks = spotify.search.searchTrack(query, limit = returnAmount).map { TrimmedTrack(it!!) }
+
+        return if (tracks.isNotEmpty()) tracks else null
+    }
+
+    fun createEmbed(track: TrimmedTrack): MessageEmbed {
+        return EmbedBuilder()
+            .setTitle("[${track.name}](https://open.spotify.com/track/${track.id})")
+            .setDescription("[${track.artist}](https://open.spotify.com/artist/${track.artist.id})")
+            .setThumbnail(track.albumCover)
+            .build()
     }
 }
