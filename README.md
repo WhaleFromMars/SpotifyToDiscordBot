@@ -4,6 +4,15 @@
 
 This proof-of-concept demonstrates streaming Spotify into a Discord voice chat. Please be aware of and respect all relevant terms of service, copyright laws, and licensing agreements when using or modifying this code.
 
+Progress:
+- [x] Stream client to voice channel
+- [ ] Basic queue functionality (cant rely on spotifies as it doesnt allow you to remove from queue)
+- [ ] Control features
+  - [ ] From embed
+  - [ ] From command
+- [ ] Link to sources
+- [ ] Audio processing
+
 ## Prerequisites
 
 - A Spotify client (Premium recommended) running on the same device as the bot
