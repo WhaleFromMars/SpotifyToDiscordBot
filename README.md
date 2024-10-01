@@ -2,7 +2,7 @@
 
 ⚠️ **IMPORTANT: This project is for educational purposes only** ⚠️
 
-This proof-of-concept demonstrates streaming Spotify into a Discord voice chat. Please be aware of and respect all relevant terms of service, copyright laws, and licensing agreements when using or modifying this code.
+This proof-of-concept demonstrates streaming Spotify into a Discord voice chat, only one server may be connected to. Please be aware of and respect all relevant terms of service, copyright laws, and licensing agreements when using or modifying this code.
 
 Progress:
 - [x] Stream client to voice channel
@@ -58,6 +58,7 @@ or
 2. Open `.env` and fill in the following:
 ```env
 DISCORD_BOT_TOKEN=your_discord_bot_token_here
+DISCORD_GUILD_ID=your_servers_id_here
 SPOTIFY_CLIENT_ID=your_spotify_client_id_here
 SPOTIFY_CLIENT_SECRET=your_spotify_client_secret_here
 ```
@@ -78,7 +79,7 @@ SPOTIFY_CLIENT_SECRET=your_spotify_client_secret_here
 ## Notes
 
 - There is work-in-progress support for non-premium Spotify accounts
-- Linux support may be possible by using an alternative to Virtual Cables and adjusting the `cableName` in `SoundAudioHandler`
+- Linux support may be possible by using an alternative to Virtual Cables and adjusting the `cableName` in the .env
 - Mac? go beg daddy Tim ive got no clue
 
 ## Disclaimer
