@@ -6,7 +6,12 @@ This proof-of-concept demonstrates streaming Spotify into a Discord voice chat. 
 
 Progress:
 - [x] Stream client to voice channel
-- [ ] Basic queue functionality (cant rely on spotifies as it doesnt allow you to remove from queue)
+- [x] Authenticate spotify via local webserver/user input
+  - [ ] save token for automatic refresh between sessions
+- [ ] Basic queue functionality (cant rely on spotifys as it doesnt allow you to remove from queue)
+  - [ ] Shuffle
+  - [ ] Repeat song/queue
+- [ ] Rich Emned
 - [ ] Control features
   - [ ] From embed
   - [ ] From command
