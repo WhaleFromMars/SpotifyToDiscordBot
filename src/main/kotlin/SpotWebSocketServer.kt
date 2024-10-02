@@ -1,4 +1,3 @@
-// MyWebSocketServer.kt
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withTimeout
 import org.java_websocket.WebSocket
