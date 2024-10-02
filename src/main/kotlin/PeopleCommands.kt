@@ -6,20 +6,6 @@ import net.dv8tion.jda.api.interactions.commands.Command.Choice
 
 object PeopleCommands {
 
-    fun joinCommand(event: MessageReceivedEvent) {
-        val guild = event.guild
-        val channel = event.channel
-        val member = event.member ?: return println("Member is null")
-        val voiceChannel = Utils.getUserVoiceChannel(member) ?: return println("User is not in a voice channel")
-
-        guild.audioManager.openAudioConnection(voiceChannel)
-        channel.sendMessage("Joined voice channel: ${voiceChannel.name}").queue()
-    }
-
-    fun playCommand(event: MessageReceivedEvent) {
-
-    }
-
     suspend fun playCommandSlash(event: SlashCommandInteractionEvent) {
         val member = event.member ?: return
         val guild = event.guild ?: return
@@ -46,17 +32,26 @@ object PeopleCommands {
         }
 
         // Get the song query from the command option
-        val songQuery: String = event.getOption("song")?.asString ?: ""
+        val songQuery: String = event.getOption("song")?.asString ?: return
+        println("Song query: $songQuery")
         if (songQuery.isBlank()) {
             event.reply("Please provide a song name or Spotify URL.").setEphemeral(true).queue()
             return
         }
 
+        var tracks: List<TrimmedTrack>?
         // Search for the song using the Spotify API
-        val tracks = SpotifyHelper.searchTrack(songQuery, returnAmount = 1)
-        if (tracks.isNullOrEmpty()) {
-            event.reply("No tracks found for your query.").setEphemeral(true).queue()
-            return
+        if (songQuery.startsWith("id:")) {
+            val trackId = songQuery.substringAfter("id:")
+            val track =
+                SpotifyHelper.getTrack(trackId) ?: return event.reply("something went wrong").setEphemeral(true).queue()
+            tracks = listOf(track)
+        } else {
+            tracks = SpotifyHelper.searchTrack(songQuery, returnAmount = 1)
+            if (tracks.isNullOrEmpty()) {
+                event.reply("No tracks found for your query.").setEphemeral(true).queue()
+                return
+            }
         }
 
         val track = tracks.first()
@@ -73,12 +68,13 @@ object PeopleCommands {
         if (event.name != "play" || event.focusedOption.name != "song") return
 
         val userInput = event.focusedOption.value
-        // Search for tracks based on user input
+        if (userInput.isEmpty()) return
+
         val tracks = SpotifyHelper.searchTrack(userInput, returnAmount = 5)
 
         if (!tracks.isNullOrEmpty()) {
             val options: List<Choice> = tracks.map { track ->
-                Choice("${track.name} by ${track.artist.name}", track.id)
+                Choice("${track.name} by ${track.artist.name}", "id:${track.id}")
             }
             event.replyChoices(options).queue()
         } else {

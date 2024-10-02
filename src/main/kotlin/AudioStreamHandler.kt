@@ -11,7 +11,7 @@ object AudioStreamHandler : AudioSendHandler {
     private var lastFrame: ByteBuffer? = null
 
     init {
-        require(cableName != null) { "CABLE_NAME environment variable not set." }
+        require(cableName.isNotEmpty()) { "CABLE_NAME environment variable not set." }
     }
 
     fun startCapture(): Boolean {
