@@ -37,8 +37,8 @@ object PeopleBot : ListenerAdapter() {
     ).setMemberCachePolicy(MemberCachePolicy.VOICE).addEventListeners(this).build()
 
     init {
-        require(token != "") { "Missing environment variable: DISCORD_BOT_TOKEN" }
-        require(GUILD_ID != "") { "Missing environment variable: DISCORD_GUILD_ID" }
+        require(token.isNotEmpty()) { "Missing environment variable: DISCORD_BOT_TOKEN" }
+        require(GUILD_ID.isNotEmpty()) { "Missing environment variable: DISCORD_GUILD_ID" }
         SpotifyHelper
         registerCommands()
     }
@@ -70,9 +70,8 @@ object PeopleBot : ListenerAdapter() {
 
         val content = event.message.contentRaw.split(" ").firstOrNull()
         when (content) {
-            "!join" -> PeopleCommands.joinCommand(event)
             "!leave" -> leaveVoiceChannel(event.guild)
-            "!stream" -> startStreaming(event.guild, event)
+            "!stream" -> startStreaming(event.guild)
             "!stop" -> stopStreaming(event.guild)
         }
     }
@@ -92,12 +91,8 @@ object PeopleBot : ListenerAdapter() {
         println("Left voice channel")
     }
 
-    fun startStreaming(guild: Guild, event: MessageReceivedEvent? = null) {
-        if (isStreaming) {
-            println("Already streaming")
-            event?.channel?.sendMessage("Already streaming")?.queue()
-            return
-        }
+    fun startStreaming(guild: Guild) {
+        if (isStreaming) return
 
         isStreaming = true
         val audioManager = guild.audioManager
@@ -105,14 +100,12 @@ object PeopleBot : ListenerAdapter() {
 
         if (!AudioStreamHandler.startCapture()) {
             isStreaming = false
-            event?.channel?.sendMessage("Failed to start audio capture.")?.queue()
             println("Failed to start audio capture.")
             return
         }
         audioManager.sendingHandler = AudioStreamHandler
 
         println("Started streaming audio from CABLE Output (VB-Audio Virtual Cable)")
-        event?.channel?.sendMessage("Started streaming audio from CABLE Output (VB-Audio Virtual Cable)")?.queue()
     }
 
     private fun stopStreaming(guild: Guild) {
