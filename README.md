@@ -6,8 +6,7 @@ This proof-of-concept demonstrates streaming Spotify into a Discord voice chat, 
 
 Progress:
 - [x] Stream client to voice channel
-- [x] Authenticate spotify via local webserver/user input
-  - [ ] save token for automatic refresh between sessions
+- [x] Hook up local api via spicetify to support non premium users
 - [ ] Basic queue functionality (cant rely on spotifys as it doesnt allow you to remove from queue)
   - [ ] Shuffle
   - [ ] Repeat song/queue
@@ -18,15 +17,10 @@ Progress:
 - [ ] Audio processing
 - [ ] Tracking for a spotify wrapped alternative
 
-Far away: Non Premium Support:
-Either
-- [ ] Gui based python autoclick based (ass, only suitable if being ran on a stand alone device as requires gui on screen)
-or
-- [ ] fork SpotX and see if we can inject a locally accessible api like the now defunct spotilocal used to provide
-
 ## Prerequisites
 
-- A Spotify client (Premium recommended) running on the same device as the bot
+- A Spotify [(Spicetify)](https://spicetify.app/docs/getting-started) client running on the same device as the bot
+- add the extension found in this repo (local-api.js) to spicetifys extensions
 - Virtual Cables on Windows (alternative required for Linux)
 - Discord Bot Token
 - Spotify Client Secret and Key
@@ -48,10 +42,9 @@ or
 
 1. Go to https://developer.spotify.com/dashboard
 2. Create a new app
-3. Add `http://localhost:8080` to the redirect URIs
-4. Enable Web API
-5. Save changes
-6. In Settings, copy the Client ID and Client Secret
+3. Enable Web API
+4. Save changes
+5. In Settings, copy the Client ID and Client Secret
 
 ### 3. Environment Configuration
 
@@ -71,15 +64,8 @@ SPOTIFY_CLIENT_SECRET=your_spotify_client_secret_here
 - Change the `cableName` in `SoundAudioHandler` if necessary
 - Redirect your Spotify output to the virtual cable
 
-## Usage
-
-1. Run the bot
-2. The bot will prompt for Spotify authorization in your browser
-3. Authorize the application for the currently logged-in Spotify user
-
 ## Notes
 
-- There is work-in-progress support for non-premium Spotify accounts
 - Linux support may be possible by using an alternative to Virtual Cables and adjusting the `cableName` in the .env
 - Mac? go beg daddy Tim ive got no clue
 
