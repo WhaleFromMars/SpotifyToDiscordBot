@@ -1,12 +1,18 @@
 // MyWebSocketServer.kt
+import kotlinx.coroutines.future.await
+import kotlinx.coroutines.withTimeout
 import org.java_websocket.WebSocket
 import org.java_websocket.handshake.ClientHandshake
 import org.java_websocket.server.WebSocketServer
 import java.net.InetSocketAddress
+import java.util.concurrent.CompletableFuture
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 class SpotWebSocketServer(port: Int) : WebSocketServer(InetSocketAddress(port)) {
 
     private var clientConnection: WebSocket? = null
+    private val connectionFuture = CompletableFuture<Unit>()
 
     override fun onOpen(conn: WebSocket, handshake: ClientHandshake) {
         if (clientConnection == null) {
@@ -15,9 +21,16 @@ class SpotWebSocketServer(port: Int) : WebSocketServer(InetSocketAddress(port)) 
             sendCommand("volume", "100")
             sendCommand("repeat", "0")
             sendCommand("pause")
+            connectionFuture.complete(Unit)
         } else {
             println("A client is already connected. Rejecting connection from ${conn.remoteSocketAddress}")
             conn.close(1000, "Only one client allowed at a time")
+        }
+    }
+
+    suspend fun waitForConnection(timeout: Duration = 30.seconds) {
+        withTimeout(30.seconds) {
+            connectionFuture.await()
         }
     }
 
@@ -48,9 +61,7 @@ class SpotWebSocketServer(port: Int) : WebSocketServer(InetSocketAddress(port)) 
             command
         }
 
-        println("Sending message: $message")
         clientConnection?.send(message)
-        println("client is null: ${clientConnection == null}")
     }
 
     fun stopServer() {

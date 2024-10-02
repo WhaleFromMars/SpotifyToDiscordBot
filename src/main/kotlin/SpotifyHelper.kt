@@ -1,12 +1,10 @@
 import com.adamratzman.spotify.*
 import io.github.cdimascio.dotenv.Dotenv
 import kotlinx.coroutines.*
-import net.dv8tion.jda.api.EmbedBuilder
-import net.dv8tion.jda.api.entities.MessageEmbed
+import kotlin.time.Duration.Companion.seconds
 
 object SpotifyHelper {
     private val dotEnv = Dotenv.load()
-    private val PLAYBACK_DEVICE_NAME = dotEnv["SPOTIFY_DEVICE_NAME"]
 
     // We handle our own queue because Spotify doesn't support removing items from the queue
     var queue: MutableList<TrimmedTrack> = mutableListOf()
@@ -20,51 +18,60 @@ object SpotifyHelper {
 
     private val webSocketServer = SpotWebSocketServer(8080)
     private var isPlaying = false
+    val spotifyPath = dotEnv["SPOTIFY_EXE_PATH"]
+
 
     init {
+        require(spotifyPath.isNotEmpty()) { "Missing environment variable: SPOTIFY_EXE_PATH" }
         runBlocking {
-            initialiseSpotify()
+            ensureLocalSpotifyIsRunning()
+            initialiseSpotifyAPI()
+
+            println("waiting for spotify api connection")
             webSocketServer.start()
+            webSocketServer.waitForConnection()
+            println("connection established")
         }
         initiatePlaybackLoop()
     }
 
-    fun sendLocalPauseCommand() {
-        webSocketServer.sendCommand("pause")
-        isPlaying = false
+    suspend fun ensureLocalSpotifyIsRunning() {
+        if (isLocalSpotifyRunning()) return
+
+        println("Spotify is not running. Attempting to start...")
+        startSpotify()
+        waitForSpotifyToStart()
+
     }
 
-    fun sendLocalPlayCommand() {
-        webSocketServer.sendCommand("play")
-        isPlaying = true
+    fun isLocalSpotifyRunning(): Boolean {
+        return ProcessHandle.allProcesses()
+            .anyMatch { it.info().command().orElse("").endsWith("Spotify.exe", ignoreCase = true) }
     }
 
-    fun sendLocalPlayUriCommand(uri: String) {
-        webSocketServer.sendCommand("playUri", uri)
-        isPlaying = true
+    suspend fun startSpotify() {
+        spotifyPath?.let { path ->
+            withContext(Dispatchers.IO) {
+                ProcessBuilder(path).start()
+            }
+        } ?: throw IllegalStateException("Spotify executable path not found in .env file")
     }
 
-    fun sendLocalSetVolumeCommand(volume: Int) {
-        webSocketServer.sendCommand("volume", volume.toString())
+    suspend fun waitForSpotifyToStart() {
+        withTimeout(30.seconds) {
+            while (!isLocalSpotifyRunning()) {
+                delay(500)
+            }
+        }
+        println("Spotify has started successfully.")
     }
 
-    fun sendLocalSetRepeatCommand(repeatMode: Int) {
-        webSocketServer.sendCommand("repeat", repeatMode.toString())
-    }
-
-    fun sendLocalSetMuteCommand(mute: Boolean) {
-        webSocketServer.sendCommand("mute", mute.toString())
-    }
-
-    fun sendLocalSetShuffleCommand(shuffle: Boolean) {
-        webSocketServer.sendCommand("shuffle", shuffle.toString())
-    }
 
     fun addToQueue(track: TrimmedTrack) {
         queue.add(track)
     }
 
-    private suspend fun initialiseSpotify() {
+    private suspend fun initialiseSpotifyAPI() {
         val clientId = dotEnv["SPOTIFY_CLIENT_ID"]
         val clientSecret = dotEnv["SPOTIFY_CLIENT_SECRET"]
 
@@ -73,12 +80,6 @@ object SpotifyHelper {
 
         spotify = spotifyAppApi(clientId, clientSecret).build()
         println("Spotify API initialized.")
-    }
-
-    private fun normaliseDeviceSettings() {
-        sendLocalSetRepeatCommand(0)
-        sendLocalSetShuffleCommand(false)
-        sendLocalSetVolumeCommand(100)
     }
 
     fun initiatePlaybackLoop() {
@@ -114,11 +115,39 @@ object SpotifyHelper {
         return if (tracks.isNotEmpty()) tracks else null
     }
 
-    fun createEmbed(track: TrimmedTrack): MessageEmbed {
-        return EmbedBuilder()
-            .setTitle("[${track.name}](https://open.spotify.com/track/${track.id})")
-            .setDescription("[${track.artist}](https://open.spotify.com/artist/${track.artist.id})")
-            .setThumbnail(track.albumCover)
-            .build()
+    suspend fun getTrack(id: String): TrimmedTrack? {
+        val track = spotify.tracks.getTrack(id)
+        return if (track != null) TrimmedTrack(track) else null
+    }
+
+    fun sendLocalPauseCommand() {
+        webSocketServer.sendCommand("pause")
+        isPlaying = false
+    }
+
+    fun sendLocalResumeCommand() {
+        webSocketServer.sendCommand("play") //resumes x)
+        isPlaying = true
+    }
+
+    fun sendLocalPlayUriCommand(uri: String) {
+        webSocketServer.sendCommand("playUri", uri)
+        isPlaying = true
+    }
+
+    fun sendLocalSetVolumeCommand(volume: Int) {
+        webSocketServer.sendCommand("volume", volume.toString())
+    }
+
+    fun sendLocalSetRepeatCommand(repeatMode: Int) {
+        webSocketServer.sendCommand("repeat", repeatMode.toString())
+    }
+
+    fun sendLocalSetMuteCommand(mute: Boolean) {
+        webSocketServer.sendCommand("mute", mute.toString())
+    }
+
+    fun sendLocalSetShuffleCommand(shuffle: Boolean) {
+        webSocketServer.sendCommand("shuffle", shuffle.toString())
     }
 }
