@@ -55,6 +55,7 @@ DISCORD_BOT_TOKEN=your_discord_bot_token_here
 DISCORD_GUILD_ID=your_servers_id_here
 SPOTIFY_CLIENT_ID=your_spotify_client_id_here
 SPOTIFY_CLIENT_SECRET=your_spotify_client_secret_here
+SPOTIFY_EXE_PATH=c://user/etc/etc/etc//Spotify.exe
 ```
 
 ### 4. Audio Setup
