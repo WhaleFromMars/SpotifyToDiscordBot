@@ -46,7 +46,8 @@ object PeopleBot : ListenerAdapter() {
     private fun registerCommands() {
         jda.updateCommands().addCommands(
             Commands.slash("play", "Adds a song to the queue")
-                .addOption(OptionType.STRING, "song", "requires the song name or spotify url", true).setGuildOnly(true)
+                .addOption(OptionType.STRING, "song", "requires the song name or spotify url", true, true)
+                .setGuildOnly(true)
         ).apply { queue() }
 
     }
