@@ -1,79 +1,36 @@
-import com.adamratzman.spotify.*
+import com.adamratzman.spotify.SpotifyAppApi
+import com.adamratzman.spotify.spotifyAppApi
 import io.github.cdimascio.dotenv.Dotenv
 import kotlinx.coroutines.*
-import kotlin.time.Duration.Companion.seconds
+import net.dv8tion.jda.api.EmbedBuilder
+import net.dv8tion.jda.api.entities.Message
+import net.dv8tion.jda.api.entities.MessageEmbed
+import net.dv8tion.jda.api.entities.emoji.Emoji
+import java.io.File
 
 object SpotifyHelper {
     private val dotEnv = Dotenv.load()
-
-    // We handle our own queue because Spotify doesn't support removing items from the queue
-    var queue: MutableList<TrimmedTrack> = mutableListOf()
-    var previousSongs: MutableList<TrimmedTrack> = mutableListOf()
-    var currentTrack: TrimmedTrack? = null
-
-    var maxProgress = 0
-    var currentProgress = 0
-
     private lateinit var spotify: SpotifyAppApi
 
-    private val webSocketServer = SpotWebSocketServer(8080)
-    private var isPlaying = false
-    val spotifyPath = dotEnv["SPOTIFY_EXE_PATH"]
+    private var coverPlaceholderURLs: List<String> = emptyList()
 
+    // Variables to store the last known state
+    private var lastTrackName: String? = null
+    private var lastTrackArtist: String? = null
+    private var lastQueue: List<String> = emptyList()
 
     init {
-        require(spotifyPath.isNotEmpty()) { "Missing environment variable: SPOTIFY_EXE_PATH" }
         runBlocking {
-            ensureLocalSpotifyIsRunning()
             initialiseSpotifyAPI()
-
-            println("waiting for spotify api connection")
-            webSocketServer.start()
-            webSocketServer.waitForConnection()
-            println("connection established")
+            println("Waiting for SpotifyPlayer initialization")
+            SpotifyPlayer.initialize()
         }
-        initiatePlaybackLoop()
-    }
-
-    suspend fun ensureLocalSpotifyIsRunning() {
-        if (isLocalSpotifyRunning()) return
-
-        println("Spotify is not running. Attempting to start...")
-        startSpotify()
-        waitForSpotifyToStart()
-
-    }
-
-    fun isLocalSpotifyRunning(): Boolean {
-        return ProcessHandle.allProcesses()
-            .anyMatch { it.info().command().orElse("").endsWith("Spotify.exe", ignoreCase = true) }
-    }
-
-    suspend fun startSpotify() {
-        spotifyPath?.let { path ->
-            withContext(Dispatchers.IO) {
-                ProcessBuilder(path).start()
-            }
-        } ?: throw IllegalStateException("Spotify executable path not found in .env file")
-    }
-
-    suspend fun waitForSpotifyToStart() {
-        withTimeout(30.seconds) {
-            while (!isLocalSpotifyRunning()) {
-                delay(500)
-            }
-        }
-        println("Spotify has started successfully.")
-    }
-
-
-    fun addToQueue(track: TrimmedTrack) {
-        queue.add(track)
+        loadCoverPlaceholders()
     }
 
     private suspend fun initialiseSpotifyAPI() {
-        val clientId = dotEnv["SPOTIFY_CLIENT_ID"]
-        val clientSecret = dotEnv["SPOTIFY_CLIENT_SECRET"]
+        val clientId = dotEnv["SPOTIFY_CLIENT_ID"] ?: ""
+        val clientSecret = dotEnv["SPOTIFY_CLIENT_SECRET"] ?: ""
 
         require(clientId.isNotEmpty()) { "Missing environment variable: SPOTIFY_CLIENT_ID" }
         require(clientSecret.isNotEmpty()) { "Missing environment variable: SPOTIFY_CLIENT_SECRET" }
@@ -82,36 +39,17 @@ object SpotifyHelper {
         println("Spotify API initialized.")
     }
 
-    fun initiatePlaybackLoop() {
-        CoroutineScope(Dispatchers.Default).launch {
-            while (true) {
-                delay(1000)
-                if (queue.isEmpty()) continue
-
-                if (!isPlaying) {
-                    if (currentTrack == null) {
-                        queue.removeAt(0).apply {
-                            currentTrack = this
-                            previousSongs.add(this)
-                            maxProgress = this.duration
-                            sendLocalPlayUriCommand("spotify:track:${this.id}$")
-                        }
-                        currentProgress = 0
-                    }
-                } else {
-                    currentProgress++
-                    if (currentProgress >= maxProgress) {
-                        currentTrack = null
-                        sendLocalPauseCommand()
-                    }
-                }
-            }
+    private fun loadCoverPlaceholders() {
+        val file = File("cover_placeholders.txt")
+        if (file.exists()) {
+            coverPlaceholderURLs = file.readLines().filter { it.isNotBlank() }
+        } else {
+            println("Warning: cover_placeholders.txt not found. Using empty list for placeholders.")
         }
     }
 
     suspend fun searchTrack(query: String, returnAmount: Int = 1): List<TrimmedTrack>? {
         val tracks = spotify.search.searchTrack(query, limit = returnAmount).map { TrimmedTrack(it!!) }
-
         return if (tracks.isNotEmpty()) tracks else null
     }
 
@@ -120,34 +58,91 @@ object SpotifyHelper {
         return if (track != null) TrimmedTrack(track) else null
     }
 
-    fun sendLocalPauseCommand() {
-        webSocketServer.sendCommand("pause")
-        isPlaying = false
+    fun updateEmbedMessage() {
+        if (PeopleBot.EMBED_CHANNEL_ID.isEmpty()) return
+
+        val currentTrack = SpotifyPlayer.currentTrack
+        val currentQueue = SpotifyPlayer.queue.take(5).map { "${it.name} by ${it.artist}" }
+
+        // Check if any relevant information has changed
+        if (currentTrack?.name == lastTrackName &&
+            currentTrack?.artist == lastTrackArtist &&
+            currentQueue == lastQueue
+        ) {
+            // No changes, no need to update
+            return
+        }
+
+        // Update last known state
+        lastTrackName = currentTrack?.name
+        lastTrackArtist = currentTrack?.artist
+        lastQueue = currentQueue
+
+        val channel = PeopleBot.jda.getTextChannelById(PeopleBot.EMBED_CHANNEL_ID) ?: return
+        val embed = createEmbed()
+
+        val messageId = PeopleBot.CURRENT_TRACK_EMBED_ID
+        if (messageId.isEmpty()) {
+            channel.sendMessageEmbeds(embed).queue { message ->
+                PeopleBot.CURRENT_TRACK_EMBED_ID = message.id
+                PeopleBot.saveMessageIDs()
+                addReactionsToMessage(message)
+            }
+        } else {
+            channel.retrieveMessageById(messageId).queue { message ->
+                if (message != null) {
+                    message.editMessageEmbeds(embed).queue()
+                } else {
+                    channel.sendMessageEmbeds(embed).queue { newMessage ->
+                        PeopleBot.CURRENT_TRACK_EMBED_ID = newMessage.id
+                        PeopleBot.saveMessageIDs()
+                        addReactionsToMessage(newMessage)
+                    }
+                }
+            }
+        }
     }
 
-    fun sendLocalResumeCommand() {
-        webSocketServer.sendCommand("play") //resumes x)
-        isPlaying = true
+    private fun addReactionsToMessage(message: Message) {
+        val emojis = listOf(
+            "\uD83D\uDD00",  // Shuffle
+            "\u23EE\uFE0F",  // Previous track
+            "\u23EF\uFE0F",  // Play/Pause
+            "\u23ED\uFE0F",  // Next track
+            "\uD83D\uDD01",  // Repeat
+            "\u23F9\uFE0F"   // Stop
+        )
+        emojis.forEach { emojiUnicode ->
+            message.addReaction(Emoji.fromUnicode(emojiUnicode)).queue()
+        }
     }
 
-    fun sendLocalPlayUriCommand(uri: String) {
-        webSocketServer.sendCommand("playUri", uri)
-        isPlaying = true
-    }
+    private fun createEmbed(): MessageEmbed {
+        val embedBuilder = EmbedBuilder()
+        val track = SpotifyPlayer.currentTrack
 
-    fun sendLocalSetVolumeCommand(volume: Int) {
-        webSocketServer.sendCommand("volume", volume.toString())
-    }
+        if (track != null) {
+            embedBuilder
+                .setThumbnail(track.albumCover)
+                .addField("Track", "[${track.name}](${track.url})", false)
+                .addField("Artist", "[${track.artist}](${track.artistUrl})", false)
 
-    fun sendLocalSetRepeatCommand(repeatMode: Int) {
-        webSocketServer.sendCommand("repeat", repeatMode.toString())
-    }
+            val nextTracks = SpotifyPlayer.queue.take(5)
+            if (nextTracks.isNotEmpty()) {
+                val queueString =
+                    nextTracks.mapIndexed { index, t -> "${index + 1}. ${t.name} by ${t.artist}" }.joinToString("\n")
+                embedBuilder.addField("Upcoming Tracks", queueString, false)
+            } else {
+                embedBuilder.addField("Upcoming Tracks", "No tracks in queue.", false)
+            }
+        } else {
+            embedBuilder
+                .setThumbnail(coverPlaceholderURLs.random())
+                .addField("Track", "N/A", false)
+                .addField("Artist", "N/A", false)
+                .addField("Upcoming Tracks", "No tracks in queue.", false)
+        }
 
-    fun sendLocalSetMuteCommand(mute: Boolean) {
-        webSocketServer.sendCommand("mute", mute.toString())
-    }
-
-    fun sendLocalSetShuffleCommand(shuffle: Boolean) {
-        webSocketServer.sendCommand("shuffle", shuffle.toString())
+        return embedBuilder.build()
     }
 }

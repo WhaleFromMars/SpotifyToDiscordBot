@@ -1,5 +1,5 @@
+import kotlinx.coroutines.*
 import kotlinx.coroutines.future.await
-import kotlinx.coroutines.withTimeout
 import org.java_websocket.WebSocket
 import org.java_websocket.handshake.ClientHandshake
 import org.java_websocket.server.WebSocketServer
@@ -8,7 +8,7 @@ import java.util.concurrent.CompletableFuture
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
-class SpotWebSocketServer(port: Int) : WebSocketServer(InetSocketAddress(port)) {
+object SpotWebSocketServer : WebSocketServer(InetSocketAddress(8080)) {
 
     private var clientConnection: WebSocket? = null
     private val connectionFuture = CompletableFuture<Unit>()
@@ -17,9 +17,6 @@ class SpotWebSocketServer(port: Int) : WebSocketServer(InetSocketAddress(port)) 
         if (clientConnection == null) {
             println("New connection from ${conn.remoteSocketAddress}")
             clientConnection = conn
-            sendCommand("volume", "100")
-            sendCommand("repeat", "0")
-            sendCommand("pause")
             connectionFuture.complete(Unit)
         } else {
             println("A client is already connected. Rejecting connection from ${conn.remoteSocketAddress}")
@@ -28,7 +25,7 @@ class SpotWebSocketServer(port: Int) : WebSocketServer(InetSocketAddress(port)) 
     }
 
     suspend fun waitForConnection(timeout: Duration = 30.seconds) {
-        withTimeout(30.seconds) {
+        withTimeout(timeout) {
             connectionFuture.await()
         }
     }
@@ -41,8 +38,18 @@ class SpotWebSocketServer(port: Int) : WebSocketServer(InetSocketAddress(port)) 
     }
 
     override fun onMessage(conn: WebSocket, message: String) {
-        println("Received message: $message")
-        // Handle incoming messages if needed
+        val parts = message.split('|', limit = 2)
+        if (parts.size != 2) {
+            println("Unrecognized message format: $message")
+            return
+        }
+
+        val (prefix, content) = parts
+        when (prefix) {
+            "progress" -> SpotifyPlayer.updateProgress(content.toInt())
+            "playerState" -> SpotifyPlayer.updateFromJson(content)
+            else -> println("Unknown message prefix: $prefix")
+        }
     }
 
     override fun onError(conn: WebSocket?, ex: Exception) {

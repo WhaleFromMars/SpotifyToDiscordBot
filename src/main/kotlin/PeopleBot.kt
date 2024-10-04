@@ -4,24 +4,32 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.entities.Guild
+import net.dv8tion.jda.api.entities.channel.ChannelType
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
+import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent
 import net.dv8tion.jda.api.hooks.ListenerAdapter
 import net.dv8tion.jda.api.interactions.commands.OptionType
 import net.dv8tion.jda.api.interactions.commands.build.Commands
+import net.dv8tion.jda.api.interactions.commands.build.OptionData
 import net.dv8tion.jda.api.requests.GatewayIntent
 import net.dv8tion.jda.api.utils.MemberCachePolicy
 import net.dv8tion.jda.api.utils.cache.CacheFlag
+import java.io.File
 
 object PeopleBot : ListenerAdapter() {
     val dotEnv = Dotenv.load()
     val GUILD_ID = dotEnv["DISCORD_GUILD_ID"]
     private val token = dotEnv["DISCORD_BOT_TOKEN"]
 
+    var EMBED_CHANNEL_ID: String = ""
+    var CURRENT_TRACK_EMBED_ID: String = ""
+    var QUEUE_MESSAGE_ID: String = ""
+
     private var isStreaming = false
 
-    private val jda = JDABuilder.create(
+    val jda = JDABuilder.create(
         token,
         GatewayIntent.GUILD_MEMBERS,
         GatewayIntent.GUILD_MESSAGES,
@@ -40,16 +48,45 @@ object PeopleBot : ListenerAdapter() {
         require(token.isNotEmpty()) { "Missing environment variable: DISCORD_BOT_TOKEN" }
         require(GUILD_ID.isNotEmpty()) { "Missing environment variable: DISCORD_GUILD_ID" }
         SpotifyHelper
+        loadMessageIDs()
         registerCommands()
+    }
+
+    private fun loadMessageIDs() {
+        if (!File("$GUILD_ID.json").exists()) return
+        File("$GUILD_ID.json").bufferedReader().readLines().let { lines ->
+            EMBED_CHANNEL_ID = lines[0]
+            CURRENT_TRACK_EMBED_ID = lines[1]
+            QUEUE_MESSAGE_ID = lines[2]
+        }
+    }
+
+    fun saveMessageIDs() {
+        File("$GUILD_ID.json").delete()
+        File("$GUILD_ID.json").bufferedWriter().use { writer ->
+            writer.write("$EMBED_CHANNEL_ID\n")
+            writer.write("$CURRENT_TRACK_EMBED_ID\n")
+            writer.write("$QUEUE_MESSAGE_ID\n")
+        }
     }
 
     private fun registerCommands() {
         jda.updateCommands().addCommands(
             Commands.slash("play", "Adds a song to the queue")
                 .addOption(OptionType.STRING, "song", "requires the song name or spotify url", true, true)
+                .setGuildOnly(true),
+            Commands.slash(
+                "setnowplayingchannel", "sets the channel to place the embed messages for current track and the queue"
+            ).addOptions(
+                OptionData(
+                    OptionType.CHANNEL,
+                    "channel",
+                    "requires a text channel",
+                    true
+                ).setChannelTypes(ChannelType.TEXT)
+            )
                 .setGuildOnly(true)
         ).apply { queue() }
-
     }
 
     override fun onSlashCommandInteraction(event: SlashCommandInteractionEvent) {
@@ -57,7 +94,8 @@ object PeopleBot : ListenerAdapter() {
         //if bot isnt in a channel, join author
         CoroutineScope(Dispatchers.IO).launch {
             when (event.name) {
-                "play" -> PeopleCommands.playCommandSlash(event)
+                "play" -> PeopleCommands.playSlashCommand(event)
+                "setnowplayingchannel" -> PeopleCommands.nowPlayingChannelSlashCommand(event)
             }
         }
 
@@ -71,8 +109,27 @@ object PeopleBot : ListenerAdapter() {
         val content = event.message.contentRaw.split(" ").firstOrNull()
         when (content) {
             "!leave" -> leaveVoiceChannel(event.guild)
-            "!stream" -> startStreaming(event.guild)
             "!stop" -> stopStreaming(event.guild)
+        }
+    }
+
+    override fun onMessageReactionAdd(event: MessageReactionAddEvent) {
+        if (event.guild.id != GUILD_ID) return
+        if (event.messageId != CURRENT_TRACK_EMBED_ID) return
+
+        val user = event.user ?: return
+        if (user.isBot) return
+
+        val emoji = event.emoji.name
+        //switch
+        when (emoji) {
+            "⏹️" -> stopStreaming(event.guild)
+            "❌" -> leaveVoiceChannel(event.guild)
+            "⏯️" -> SpotifyPlayer.togglePause()
+            "⏭️" -> SpotifyPlayer.playNext()
+            "⏮️" -> SpotifyPlayer.playPrevious()
+            "🔀" -> SpotifyPlayer.shuffle()
+            "🔁" -> SpotifyPlayer.toggleRepeat()
         }
     }
 
@@ -88,7 +145,6 @@ object PeopleBot : ListenerAdapter() {
         val audioManager = guild.audioManager
         audioManager.closeAudioConnection()
         stopStreaming(guild)
-        println("Left voice channel")
     }
 
     fun startStreaming(guild: Guild) {

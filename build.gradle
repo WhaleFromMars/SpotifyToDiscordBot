@@ -1,5 +1,6 @@
 plugins {
     id 'org.jetbrains.kotlin.jvm' version '2.0.20'
+    id 'org.jetbrains.kotlin.plugin.serialization' version '2.0.20'
 }
 
 group = 'com.whalefrommars'
@@ -18,7 +19,8 @@ dependencies {
     implementation("org.java-websocket:Java-WebSocket:${project.javaWebSocketVersion}")
 
     testImplementation("org.jetbrains.kotlin:kotlin-test")
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1"
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 }
 
 test {
