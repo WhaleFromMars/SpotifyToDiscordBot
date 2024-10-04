@@ -48,4 +48,6 @@ bin/
 ### Custom ###
 .idea/
 .env
-/.spotifyCache
+.spotifyCache
+cover_placeholders.txt
+*.json
