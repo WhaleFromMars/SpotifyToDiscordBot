@@ -18,6 +18,7 @@ object SpotifyHelper {
     private var lastTrackName: String? = null
     private var lastTrackArtist: String? = null
     private var lastQueue: List<String> = emptyList()
+    private var lastLoopStatus: Boolean? = null
 
     init {
         runBlocking {
@@ -65,10 +66,7 @@ object SpotifyHelper {
         val currentQueue = SpotifyPlayer.queue.take(5).map { "${it.name} by ${it.artist}" }
 
         // Check if any relevant information has changed
-        if (currentTrack?.name == lastTrackName &&
-            currentTrack?.artist == lastTrackArtist &&
-            currentQueue == lastQueue
-        ) {
+        if (currentTrack?.name == lastTrackName && currentTrack?.artist == lastTrackArtist && currentQueue == lastQueue && lastLoopStatus == SpotifyPlayer.repeatQueue) {
             // No changes, no need to update
             return
         }
@@ -77,6 +75,7 @@ object SpotifyHelper {
         lastTrackName = currentTrack?.name
         lastTrackArtist = currentTrack?.artist
         lastQueue = currentQueue
+        lastLoopStatus = SpotifyPlayer.repeatQueue
 
         val channel = PeopleBot.jda.getTextChannelById(PeopleBot.EMBED_CHANNEL_ID) ?: return
         val embed = createEmbed()
@@ -103,7 +102,7 @@ object SpotifyHelper {
         }
     }
 
-    private fun addReactionsToMessage(message: Message) {
+    fun addReactionsToMessage(message: Message) {
         val emojis = listOf(
             "\uD83D\uDD00",  // Shuffle
             "\u23EE\uFE0F",  // Previous track
@@ -117,7 +116,7 @@ object SpotifyHelper {
         }
     }
 
-    private fun createEmbed(): MessageEmbed {
+    fun createEmbed(): MessageEmbed {
         val embedBuilder = EmbedBuilder()
         val track = SpotifyPlayer.currentTrack
 
@@ -131,16 +130,17 @@ object SpotifyHelper {
             if (nextTracks.isNotEmpty()) {
                 val queueString =
                     nextTracks.mapIndexed { index, t -> "${index + 1}. ${t.name} by ${t.artist}" }.joinToString("\n")
-                embedBuilder.addField("Upcoming Tracks", queueString, false)
+                embedBuilder.addField("Upcoming Tracksᅟᅟᅟᅟᅟﾠ", queueString, false) //dont fuck the spacing up
             } else {
-                embedBuilder.addField("Upcoming Tracks", "No tracks in queue.", false)
+                embedBuilder.addField("Upcoming Tracksᅟᅟᅟᅟᅟﾠ", "No tracks in queue.", false) //dont fuck the spacing up
             }
+                .addField("", "Looping ${if (SpotifyPlayer.repeatQueue) "Enabled" else "Disabled"}", true)
         } else {
             embedBuilder
                 .setThumbnail(coverPlaceholderURLs.random())
                 .addField("Track", "N/A", false)
                 .addField("Artist", "N/A", false)
-                .addField("Upcoming Tracks", "No tracks in queue.", false)
+                .addField("Upcoming Tracksᅟᅟᅟᅟᅟﾠ", "No tracks in queue.", false) //dont fuck the spacing up
         }
 
         return embedBuilder.build()

@@ -5,6 +5,7 @@ import kotlinx.coroutines.launch
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.entities.Guild
 import net.dv8tion.jda.api.entities.channel.ChannelType
+import net.dv8tion.jda.api.entities.emoji.Emoji
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
@@ -25,13 +26,13 @@ object PeopleBot : ListenerAdapter() {
 
     var EMBED_CHANNEL_ID: String = ""
     var CURRENT_TRACK_EMBED_ID: String = ""
-    var QUEUE_MESSAGE_ID: String = ""
 
     private var isStreaming = false
 
     val jda = JDABuilder.create(
         token,
         GatewayIntent.GUILD_MEMBERS,
+        GatewayIntent.GUILD_MESSAGE_REACTIONS,
         GatewayIntent.GUILD_MESSAGES,
         GatewayIntent.MESSAGE_CONTENT,
         GatewayIntent.GUILD_VOICE_STATES
@@ -53,20 +54,25 @@ object PeopleBot : ListenerAdapter() {
     }
 
     private fun loadMessageIDs() {
-        if (!File("$GUILD_ID.json").exists()) return
-        File("$GUILD_ID.json").bufferedReader().readLines().let { lines ->
-            EMBED_CHANNEL_ID = lines[0]
-            CURRENT_TRACK_EMBED_ID = lines[1]
-            QUEUE_MESSAGE_ID = lines[2]
+        if (!File("$GUILD_ID.txt").exists()) return
+        try {
+            File("$GUILD_ID.txt").bufferedReader().readLines().let { lines ->
+                EMBED_CHANNEL_ID = lines[0]
+                CURRENT_TRACK_EMBED_ID = lines[1]
+            }
+        } catch (_: Exception) {
+            println("Error loading message IDs")
+            File("$GUILD_ID.txt").delete()
+            EMBED_CHANNEL_ID = ""
+            CURRENT_TRACK_EMBED_ID = ""
         }
     }
 
     fun saveMessageIDs() {
-        File("$GUILD_ID.json").delete()
-        File("$GUILD_ID.json").bufferedWriter().use { writer ->
+        File("$GUILD_ID.txt").delete()
+        File("$GUILD_ID.txt").bufferedWriter().use { writer ->
             writer.write("$EMBED_CHANNEL_ID\n")
             writer.write("$CURRENT_TRACK_EMBED_ID\n")
-            writer.write("$QUEUE_MESSAGE_ID\n")
         }
     }
 
@@ -116,20 +122,20 @@ object PeopleBot : ListenerAdapter() {
     override fun onMessageReactionAdd(event: MessageReactionAddEvent) {
         if (event.guild.id != GUILD_ID) return
         if (event.messageId != CURRENT_TRACK_EMBED_ID) return
-
+        if (event.user?.id == jda.selfUser.id) return
         val user = event.user ?: return
-        if (user.isBot) return
 
-        val emoji = event.emoji.name
-        //switch
+        val emoji = event.emoji
+
+        event.channel.asTextChannel().removeReactionById(event.messageId, emoji, user).queue()
+        if (SpotifyPlayer.currentTrack == null) return
         when (emoji) {
-            "⏹️" -> stopStreaming(event.guild)
-            "❌" -> leaveVoiceChannel(event.guild)
-            "⏯️" -> SpotifyPlayer.togglePause()
-            "⏭️" -> SpotifyPlayer.playNext()
-            "⏮️" -> SpotifyPlayer.playPrevious()
-            "🔀" -> SpotifyPlayer.shuffle()
-            "🔁" -> SpotifyPlayer.toggleRepeat()
+            Emoji.fromUnicode("\uD83D\uDD00") -> SpotifyPlayer.shuffle()
+            Emoji.fromUnicode("\u23EE\uFE0F") -> SpotifyPlayer.playPrevious()
+            Emoji.fromUnicode("\u23EF\uFE0F") -> SpotifyPlayer.togglePause()
+            Emoji.fromUnicode("\u23ED\uFE0F") -> SpotifyPlayer.playNext()
+            Emoji.fromUnicode("\uD83D\uDD01") -> SpotifyPlayer.toggleRepeat()
+            Emoji.fromUnicode("\u23F9\uFE0F") -> SpotifyPlayer.shutdownPlayer()
         }
     }
 
@@ -141,10 +147,10 @@ object PeopleBot : ListenerAdapter() {
         }
     }
 
-    private fun leaveVoiceChannel(guild: Guild) {
+    fun leaveVoiceChannel(guild: Guild) {
         val audioManager = guild.audioManager
-        audioManager.closeAudioConnection()
         stopStreaming(guild)
+        audioManager.closeAudioConnection()
     }
 
     fun startStreaming(guild: Guild) {
@@ -164,7 +170,7 @@ object PeopleBot : ListenerAdapter() {
         println("Started streaming audio from CABLE Output (VB-Audio Virtual Cable)")
     }
 
-    private fun stopStreaming(guild: Guild) {
+    fun stopStreaming(guild: Guild) {
         if (!isStreaming) return
 
         isStreaming = false

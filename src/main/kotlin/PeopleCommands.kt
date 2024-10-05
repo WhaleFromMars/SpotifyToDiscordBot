@@ -20,7 +20,11 @@ object PeopleCommands {
 
         PeopleBot.EMBED_CHANNEL_ID = channelID
         PeopleBot.CURRENT_TRACK_EMBED_ID = ""
-        PeopleBot.saveMessageIDs()
+        channel.asTextChannel().sendMessageEmbeds(SpotifyHelper.createEmbed()).queue { message ->
+            PeopleBot.CURRENT_TRACK_EMBED_ID = message.id
+            PeopleBot.saveMessageIDs()
+            SpotifyHelper.addReactionsToMessage(message)
+        }
 
         event.reply("Now playing channel set to ${channel.asMention}").setEphemeral(true).queue()
     }
@@ -83,7 +87,9 @@ object PeopleCommands {
 
         if (!tracks.isNullOrEmpty()) {
             val options: List<Choice> = tracks.map { track ->
-                Choice("${track.name} by ${track.artist}", "id:${track.id}")
+                val trackName = if (track.name.length < 50) track.name else "${track.name.take(50)}..."
+                val artistName = if (track.artist.length < 40) track.artist else "${track.artist.take(40)}..."
+                Choice("$trackName by $artistName", "id:${track.id}")
             }
             event.replyChoices(options).queue()
         } else {

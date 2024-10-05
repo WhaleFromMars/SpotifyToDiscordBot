@@ -19,6 +19,7 @@ object SpotifyPlayer {
     var currentProgress = 0
     var totalLength = 0
 
+    var hasWaitedOnce = false //add a second delay between songs because jank
     var isPaused: Boolean = true
     var repeatQueue: Boolean = false
 
@@ -146,6 +147,7 @@ object SpotifyPlayer {
             previousQueue.add(nextTrack)
             playUri(nextTrack.uri)
             currentTrack = nextTrack
+            hasWaitedOnce = false
         } else {
             currentTrack = null
             isPaused = true
@@ -165,15 +167,26 @@ object SpotifyPlayer {
             playUri(prevTrack.uri)
             currentTrack = prevTrack
             isPaused = false
+            hasWaitedOnce = false
         }
         SpotifyHelper.updateEmbedMessage()
+    }
+
+    fun shutdownPlayer() {
+        pause()
+        PeopleBot.leaveVoiceChannel(PeopleBot.jda.getGuildById(PeopleBot.GUILD_ID)!!)
+        webSocketServer.stopServer()
+        currentTrack = null
+
     }
 
     fun initiatePlaybackLoop() {
         CoroutineScope(Dispatchers.Default).launch {
             while (true) {
                 delay(1000)
-                SpotifyHelper.updateEmbedMessage()
+                if (PeopleBot.EMBED_CHANNEL_ID.isNotEmpty() && PeopleBot.CURRENT_TRACK_EMBED_ID.isNotEmpty()) {
+                    SpotifyHelper.updateEmbedMessage()
+                }
 
                 if (queue.isEmpty() && repeatQueue && previousQueue.isNotEmpty()) {
                     queue.addAll(previousQueue)
@@ -193,9 +206,17 @@ object SpotifyPlayer {
                     playNext()
                     continue
                 }
-                if (currentProgress != 0) continue
+                if (currentProgress != 0) {
+                    continue
+                }
 
-                playNext()
+                if (hasWaitedOnce) {
+                    hasWaitedOnce = false
+                    playNext()
+                    continue
+                } else {
+                    hasWaitedOnce = true
+                }
             }
         }
     }
