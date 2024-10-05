@@ -67,7 +67,8 @@ marketplace of spicetify plugins that may help.
 1. Install [Virtual Cables](https://vb-audio.com/Cable/index.htm) on Windows
 2. Navigate to Settings - Sound - Advanced Sound Options - App Volume and Device Preferences
 3. Redirect your Spotify output to the virtual cable input and max out its volume
-   ![img.png](img.png)
+![image](https://github.com/user-attachments/assets/a2641d43-0e62-4c2e-a6ac-660eb04c1f1d)
+
 
 ### 5. Environment Configuration
 
