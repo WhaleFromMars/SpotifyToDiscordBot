@@ -3,7 +3,7 @@
 ⚠️ **This project is for educational purposes only** ⚠️
 
 This proof-of-concept demonstrates streaming Spotify into a Discord voice chat. Only one server may be connected to at a
-time. Please be aware of and respect all relevant terms of service, copyright laws, and licensing agreements when using
+time. Please be aware of and respect all relevant terms of service, copyright laws, and licensing agreements of software this bot utilises when using
 or modifying this code.
 
 ## Current Features
