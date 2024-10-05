@@ -7,13 +7,13 @@ This proof-of-concept demonstrates streaming Spotify into a Discord voice chat, 
 Progress:
 - [x] Stream client to voice channel
 - [x] Hook up local api via spicetify to support non premium users
-- [ ] Basic queue functionality (cant rely on spotifys as it doesnt allow you to remove from queue)
-  - [ ] Shuffle
+- [x] Basic queue functionality (cant rely on spotifys as it doesnt allow you to remove from queue)
+  - [x] Shuffle
   - [ ] Repeat song/queue
-- [ ] Rich Embed
-- [ ] Control features
-  - [ ] From embed
-  - [ ] From command
+- [x] Rich Embed
+- [x] Control features
+  - [x] From embed
+  - [x] From command
 - [ ] Audio processing
 - [ ] Tracking for a spotify wrapped alternative
 
