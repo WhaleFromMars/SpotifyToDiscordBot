@@ -57,17 +57,32 @@ object PeopleCommands {
             return
         }
 
-        var tracks: List<TrimmedTrack>?
-        if (songQuery.startsWith("id:")) {
-            val trackId = songQuery.substringAfter("id:")
-            val track =
-                SpotifyHelper.getTrack(trackId) ?: return event.reply("Something went wrong").setEphemeral(true).queue()
-            tracks = listOf(track)
-        } else {
-            tracks = SpotifyHelper.searchTrack(songQuery, returnAmount = 1)
-            if (tracks.isNullOrEmpty()) {
-                event.reply("No tracks found for your query.").setEphemeral(true).queue()
-                return
+        val tracks = when {
+            songQuery.startsWith("https://open.spotify.com/track/") -> {
+                val trackId = songQuery.substringAfter("https://open.spotify.com/track/").substringBefore("?si")
+                val track = SpotifyHelper.getTrack(trackId) ?: run {
+                    event.reply("Couldnt match provided link: $songQuery").setEphemeral(true).queue()
+                    return
+                }
+                listOf(track)
+            }
+
+            songQuery.startsWith("id:") -> {
+                val trackId = songQuery.substringAfter("id:")
+                val track = SpotifyHelper.getTrack(trackId) ?: run {
+                    event.reply("Something went wrong").setEphemeral(true).queue()
+                    return
+                }
+                listOf(track)
+            }
+
+            else -> {
+                val searchedTracks = SpotifyHelper.searchTrack(songQuery, returnAmount = 1)
+                if (searchedTracks.isNullOrEmpty()) {
+                    event.reply("No tracks found for your query.").setEphemeral(true).queue()
+                    return
+                }
+                searchedTracks
             }
         }
 
