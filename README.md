@@ -29,7 +29,7 @@ or modifying this code.
 2. Create a new application
 3. In the "Bot" tab:
     - Click "Add Bot"
-    - Reset token and copy it
+    - Reset token and copy it for your .env (step 5)
 4. In the "OAuth2" tab:
     - Select "bot" under "Scopes"
     - Select "Manage Messages" under "Bot Permissions"
