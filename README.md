@@ -87,7 +87,7 @@ marketplace of spicetify plugins that may help.
 
 ### 6. Run The Bot
 
-1. Run the bot
+1. Run the bot from an ide because ive got no clue how to setup .envs and configs from a jar properly yet
 2. Run /setnowplayingchannel to set the channel the bot will display its embed in, it will function without, but
    controls will be inaccessible
 3. Join a voice channel and start /play ing tracks :)
