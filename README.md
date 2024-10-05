@@ -8,7 +8,7 @@ or modifying this code.
 
 ## Current Features
 
-- Stream client to voice channel
+- Stream audio to voice channel
 - Basic queue functionality
     - Shuffle
     - Repeat Queue
