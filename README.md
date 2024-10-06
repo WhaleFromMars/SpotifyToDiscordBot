@@ -108,5 +108,5 @@ file, one URL per line. The bot will pick one at random each time it returns to 
 
 ## Contributing
 
-Feel free to make any prs for bugs. Features will for the most part be ignored as they are most likely bloat.
+Feel free to make any prs for bugs and optimisations. Features will for the most part be ignored as they are most likely bloat, unless mentioned in the roadmap.
 If you notice anything stupid or seemingly unnecessary in the code, its either me being terrible, or working around spotify jank, test before you push anything x)
