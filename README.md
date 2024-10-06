@@ -16,7 +16,7 @@ or modifying this code.
 
 ## Roadmap
 
-- [x] clean up looping to re-add to the queue right away (theres some serious looping issues I cba to deal with rn)
+- [x] clean up looping to re-add to the queue right away/fix general wonkiness
 - [x] fix removing from queue
 - [ ] Audio processing
 - [ ] Tracking for a Spotify wrapped alternative
