@@ -20,6 +20,7 @@ or modifying this code.
 - [ ] Audio processing
 - [ ] Tracking for a Spotify wrapped alternative
 - [ ] Track Requester
+- [ ] leave vc when its alone, stop playing audio when current track is null
 
 ## Setup Instructions
 
