@@ -91,7 +91,14 @@ object PeopleBot : ListenerAdapter() {
                     true
                 ).setChannelTypes(ChannelType.TEXT)
             )
-                .setGuildOnly(true)
+                .setGuildOnly(true),
+            Commands.slash("clearqueue", "Clears the queue").setGuildOnly(true),
+            Commands.slash("remove", "Removes a song from the queue").addOption(
+                OptionType.INTEGER,
+                "index",
+                "requires the index of the song in the queue",
+                true
+            ).setGuildOnly(true)
         ).apply { queue() }
     }
 
@@ -102,6 +109,8 @@ object PeopleBot : ListenerAdapter() {
             when (event.name) {
                 "play" -> PeopleCommands.playSlashCommand(event)
                 "setnowplayingchannel" -> PeopleCommands.nowPlayingChannelSlashCommand(event)
+                "remove" -> PeopleCommands.removeSlashCommand(event)
+                "clearqueue" -> PeopleCommands.clearQueueSlashCommand(event)
             }
         }
 

@@ -10,7 +10,8 @@ object PeopleCommands {
         val guild =
             event.guild ?: return event.reply("This command is only available in servers").setEphemeral(true).queue()
 
-        if (guild.id != PeopleBot.GUILD_ID) return event.reply("This bot is configured for a different server")
+        if (guild.id != PeopleBot.GUILD_ID) return event
+            .reply("This bot is configured for a different server")
             .setEphemeral(true).queue()
 
         val channel =
@@ -27,6 +28,39 @@ object PeopleCommands {
         }
 
         event.reply("Now playing channel set to ${channel.asMention}").setEphemeral(true).queue()
+    }
+
+    fun clearQueueSlashCommand(event: SlashCommandInteractionEvent) {
+        event.deferReply(true)
+        if (SpotifyPlayer.queue.isEmpty()) return event
+            .reply("The queue is empty you muppet")
+            .setEphemeral(true).queue()
+
+        SpotifyPlayer.clearQueue()
+        event.reply("Queue cleared").setEphemeral(true).queue()
+    }
+
+    fun removeSlashCommand(event: SlashCommandInteractionEvent) {
+        event.deferReply(true)
+        val userInput = event.getOption("index").toString()
+
+        if (SpotifyPlayer.queue.isEmpty()) return event
+            .reply("The queue is empty you muppet")
+            .setEphemeral(true).queue()
+
+        if (userInput.startsWith("index:")) {
+            userInput.removePrefix("index:")
+            val removedSong = SpotifyPlayer.queue.removeAt(userInput.toInt())
+            return event.reply("Removed ${removedSong.name}").setEphemeral(true).queue()
+        } else {
+            try {
+                userInput.toInt()
+                val removedSong = SpotifyPlayer.queue.removeAt(userInput.toInt() - 1)
+                return event.reply("Removed ${removedSong.name}").setEphemeral(true).queue()
+            } catch (_: Exception) {
+                return event.reply("Invalid index or song").setEphemeral(true).queue()
+            }
+        }
     }
 
     suspend fun playSlashCommand(event: SlashCommandInteractionEvent) {
@@ -93,22 +127,50 @@ object PeopleCommands {
     }
 
     suspend fun handleAutoComplete(event: CommandAutoCompleteInteractionEvent) {
-        if (event.name != "play" || event.focusedOption.name != "song") return
+        when {
+            event.name == "play" && event.focusedOption.name == "song" -> {
+                val userInput = event.focusedOption.value
+                if (userInput.isEmpty()) return event.replyChoices(emptyList()).queue()
 
-        val userInput = event.focusedOption.value
-        if (userInput.isEmpty()) return
+                val tracks = SpotifyHelper.searchTrack(userInput, returnAmount = 5)
 
-        val tracks = SpotifyHelper.searchTrack(userInput, returnAmount = 5)
+                if (tracks.isNullOrEmpty()) return event.replyChoices(emptyList()).queue()
 
-        if (!tracks.isNullOrEmpty()) {
-            val options: List<Choice> = tracks.map { track ->
-                val trackName = if (track.name.length < 50) track.name else "${track.name.take(50)}..."
-                val artistName = if (track.artist.length < 40) track.artist else "${track.artist.take(40)}..."
-                Choice("$trackName by $artistName", "id:${track.id}")
+
+                val options = tracks.map { track ->
+                    val trackName = if (track.name.length < 50) track.name else "${track.name.take(50)}..."
+                    val artistName = if (track.artist.length < 40) track.artist else "${track.artist.take(40)}..."
+                    Choice("$trackName by $artistName", "id:${track.id}")
+                }
+
+                event.replyChoices(options).queue()
             }
-            event.replyChoices(options).queue()
-        } else {
-            event.replyChoices(emptyList()).queue()
+
+            event.name == "remove" && event.focusedOption.name == "index" -> {
+                val userInput = event.focusedOption.value
+                if (userInput.isEmpty()) event.replyChoices(emptyList()).queue()
+
+                val tracks = SpotifyPlayer.queue
+
+                if (tracks.isEmpty()) event.replyChoices(emptyList()).queue()
+
+                val options = tracks.mapIndexedNotNull { i, track ->
+                    if (i.toString().startsWith(userInput) || track.name.contains(
+                            userInput, ignoreCase = true
+                        ) || track.artist.contains(userInput, ignoreCase = true)
+                    ) {
+                        val trackName = if (track.name.length < 45) track.name else "${track.name.take(45)}..."
+                        val artistName = if (track.artist.length < 30) track.artist else "${track.artist.take(30)}..."
+                        Choice("${i + 1}. $trackName by $artistName", "index:$i")
+                    } else null
+                }.take(25)
+
+                event.replyChoices(options).queue()
+            }
+
+            else -> {
+                event.replyChoices(emptyList()).queue()
+            }
         }
     }
 }
