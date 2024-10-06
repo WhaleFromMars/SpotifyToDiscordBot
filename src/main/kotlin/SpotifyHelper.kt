@@ -14,16 +14,13 @@ object SpotifyHelper {
 
     private var coverPlaceholderURLs: List<String> = emptyList()
 
-    // Variables to store the last known state
-    private var lastTrackName: String? = null
-    private var lastTrackArtist: String? = null
-    private var lastQueue: List<String> = emptyList()
-    private var lastLoopStatus: Boolean? = null
+    private var lastSeenTrack: TrimmedTrack? = null
+    private var lastSeenQueue: List<String> = emptyList()
+    private var lastSeenRepeat: Boolean? = null
 
     init {
         runBlocking {
             initialiseSpotifyAPI()
-            println("Waiting for SpotifyPlayer initialization")
             SpotifyPlayer.initialize()
         }
         loadCoverPlaceholders()
@@ -63,21 +60,20 @@ object SpotifyHelper {
         if (PeopleBot.EMBED_CHANNEL_ID.isEmpty()) return
 
         val currentTrack = SpotifyPlayer.currentTrack
-        val currentQueue = SpotifyPlayer.queue.take(5).map { "${it.name} by ${it.artist}" }
+        val currentQueue = SpotifyPlayer.queue.take(5).map { "${it.name} - ${it.artist}" }
+        val currentRepeat = SpotifyPlayer.repeatQueue
 
         // Check if any relevant information has changed
-        if (currentTrack?.name == lastTrackName && currentTrack?.artist == lastTrackArtist && currentQueue == lastQueue && lastLoopStatus == SpotifyPlayer.repeatQueue) {
-            // No changes, no need to update
-            return
+        if (currentTrack == lastSeenTrack && currentQueue == lastSeenQueue && lastSeenRepeat == currentRepeat) {
+            return // Nothing has changed
         }
-
+        val channel =
+            PeopleBot.jda.getTextChannelById(PeopleBot.EMBED_CHANNEL_ID) ?: return //expensive so fail after cheap stuff
         // Update last known state
-        lastTrackName = currentTrack?.name
-        lastTrackArtist = currentTrack?.artist
-        lastQueue = currentQueue
-        lastLoopStatus = SpotifyPlayer.repeatQueue
+        lastSeenTrack = currentTrack
+        lastSeenQueue = currentQueue
+        lastSeenRepeat = SpotifyPlayer.repeatQueue
 
-        val channel = PeopleBot.jda.getTextChannelById(PeopleBot.EMBED_CHANNEL_ID) ?: return
         val embed = createEmbed()
 
         val messageId = PeopleBot.CURRENT_TRACK_EMBED_ID
@@ -88,17 +84,16 @@ object SpotifyHelper {
                 addReactionsToMessage(message)
             }
         } else {
-            channel.retrieveMessageById(messageId).queue { message ->
-                if (message != null) {
-                    message.editMessageEmbeds(embed).queue()
-                } else {
-                    channel.sendMessageEmbeds(embed).queue { newMessage ->
-                        PeopleBot.CURRENT_TRACK_EMBED_ID = newMessage.id
-                        PeopleBot.saveMessageIDs()
-                        addReactionsToMessage(newMessage)
-                    }
+            channel.retrieveMessageById(messageId).queue({ message ->
+                message.editMessageEmbeds(embed).queue()
+            }, { throwable ->
+                // Handle failure, e.g., message not found or deleted
+                channel.sendMessageEmbeds(embed).queue { newMessage ->
+                    PeopleBot.CURRENT_TRACK_EMBED_ID = newMessage.id
+                    PeopleBot.saveMessageIDs()
+                    addReactionsToMessage(newMessage)
                 }
-            }
+            })
         }
     }
 
@@ -129,18 +124,30 @@ object SpotifyHelper {
             val nextTracks = SpotifyPlayer.queue.take(5)
             if (nextTracks.isNotEmpty()) {
                 val queueString =
-                    nextTracks.mapIndexed { index, t -> "${index + 1}. ${t.name} by ${t.artist}" }.joinToString("\n")
-                embedBuilder.addField("Upcoming Tracksᅟᅟᅟᅟᅟﾠ", queueString, false) //dont fuck the spacing up
+                    nextTracks.mapIndexed { index, t -> "${index + 1}. ${t.name} - ${t.artist}" }.joinToString("\n")
+                embedBuilder.addField(
+                    "Upcoming Tracks${if (SpotifyPlayer.repeatQueue) " (Looped)" else ""}",
+                    queueString,
+                    false
+                )
             } else {
-                embedBuilder.addField("Upcoming Tracksᅟᅟᅟᅟᅟﾠ", "No tracks in queue.", false) //dont fuck the spacing up
+                embedBuilder.addField(
+                    "Upcoming Tracks${if (SpotifyPlayer.repeatQueue) " (Looped)" else ""}",
+                    "No tracks in queue.",
+                    false
+                )
             }
-                .addField("", "Looping ${if (SpotifyPlayer.repeatQueue) "Enabled" else "Disabled"}", true)
         } else {
+            val placeholderThumbnail = if (coverPlaceholderURLs.isNotEmpty()) coverPlaceholderURLs.random() else null
             embedBuilder
-                .setThumbnail(coverPlaceholderURLs.random())
+                .setThumbnail(placeholderThumbnail)
                 .addField("Track", "N/A", false)
                 .addField("Artist", "N/A", false)
-                .addField("Upcoming Tracksᅟᅟᅟᅟᅟﾠ", "No tracks in queue.", false) //dont fuck the spacing up
+                .addField(
+                    "Upcoming Tracks${if (SpotifyPlayer.repeatQueue) " (Looped)" else ""}",
+                    "No tracks in queue.",
+                    false
+                )
         }
 
         return embedBuilder.build()
