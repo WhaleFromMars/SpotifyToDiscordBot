@@ -3,12 +3,12 @@
 ⚠️ **This project is for educational purposes only** ⚠️
 
 This proof-of-concept demonstrates streaming Spotify into a Discord voice chat. Only one server may be connected to at a
-time. Please be aware of and respect all relevant terms of service, copyright laws, and licensing agreements when using
+time. Please be aware of and respect all relevant terms of service, copyright laws, and licensing agreements of software this bot utilises when using
 or modifying this code.
 
 ## Current Features
 
-- Stream client to voice channel
+- Stream audio to voice channel
 - Basic queue functionality
     - Shuffle
     - Repeat Queue
@@ -16,7 +16,7 @@ or modifying this code.
 
 ## Roadmap
 
-- [ ] clean up looping to re-add to the queue right away
+- [ ] clean up looping to re-add to the queue right away (theres some serious looping issues I cba to deal with rn)
 - [ ] Audio processing
 - [ ] Tracking for a Spotify wrapped alternative
 - [ ] Track Requester
@@ -29,7 +29,7 @@ or modifying this code.
 2. Create a new application
 3. In the "Bot" tab:
     - Click "Add Bot"
-    - Reset token and copy it
+    - Reset token and copy it for your .env (step 5)
 4. In the "OAuth2" tab:
     - Select "bot" under "Scopes"
     - Select "Manage Messages" under "Bot Permissions"
@@ -87,7 +87,7 @@ marketplace of spicetify plugins that may help.
 
 ### 6. Run The Bot
 
-1. Run the bot
+1. Run the bot from an ide because ive got no clue how to setup .envs and configs from a jar properly yet
 2. Run /setnowplayingchannel to set the channel the bot will display its embed in, it will function without, but
    controls will be inaccessible
 3. Join a voice channel and start /play ing tracks :)
