@@ -94,9 +94,10 @@ object PeopleBot : ListenerAdapter() {
                 .setGuildOnly(true),
             Commands.slash("clearqueue", "Clears the queue").setGuildOnly(true),
             Commands.slash("remove", "Removes a song from the queue").addOption(
-                OptionType.INTEGER,
+                OptionType.STRING,
                 "index",
-                "requires the index of the song in the queue",
+                "requires the index or name of the song in the queue",
+                true,
                 true
             ).setGuildOnly(true)
         ).apply { queue() }
