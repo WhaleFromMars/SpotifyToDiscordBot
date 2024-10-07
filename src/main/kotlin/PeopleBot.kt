@@ -135,6 +135,9 @@ object PeopleBot : ListenerAdapter() {
         val emoji = event.emoji
 
         event.channel.asTextChannel().removeReactionById(event.messageId, emoji, user).queue()
+
+        //if the user isnt in the same vc as the bot, ignore their reaction
+        if (event.member?.voiceState?.channel != event.guild.selfMember.voiceState?.channel) return
         if (SpotifyPlayer.currentTrack == null) return
         when (emoji) {
             Emoji.fromUnicode("\uD83D\uDD00") -> SpotifyPlayer.shuffle()
