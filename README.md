@@ -20,7 +20,7 @@ or modifying this code.
 - [x] fix removing from queue
 - [ ] Audio processing
 - [ ] Tracking for a Spotify wrapped alternative
-- [ ] Track Requester
+- [x] Track Requester (/who)
 - [ ] leave vc when its alone, stop playing audio when current track is null
 
 ## Setup Instructions
