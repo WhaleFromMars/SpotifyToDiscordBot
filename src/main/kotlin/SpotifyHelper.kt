@@ -126,7 +126,7 @@ object SpotifyHelper {
                 val queueString =
                     nextTracks.mapIndexed { index, t -> "${index + 1}. ${t.name} - ${t.artist}" }.joinToString("\n")
                 embedBuilder.addField(
-                    "Upcoming Tracks${if (SpotifyPlayer.repeatQueue) " (Looped)" else ""}",
+                    "Upcoming Tracks - ${SpotifyPlayer.queue.size}${if (SpotifyPlayer.repeatQueue) " (Looped)" else ""}",
                     queueString,
                     false
                 )
