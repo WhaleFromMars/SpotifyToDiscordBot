@@ -19,6 +19,7 @@ or modifying this code.
 - [x] clean up looping to re-add to the queue right away/fix general wonkiness
 - [x] fix removing from queue
 - [ ] Audio processing
+- [ ] In the same vein -> clip/trim the fuzz on initial playback
 - [ ] Tracking for a Spotify wrapped alternative
 - [x] Track Requester (/who)
 - [ ] leave vc when its alone, stop playing audio when current track is null
