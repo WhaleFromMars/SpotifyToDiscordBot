@@ -10,6 +10,7 @@ class TrimmedTrack {
     val artistUrl: String?
     val album: String
     val albumCover: String?
+    var requesterID: String = ""
 
     //for being returned over spotify api
     constructor(fullTrack: Track) {

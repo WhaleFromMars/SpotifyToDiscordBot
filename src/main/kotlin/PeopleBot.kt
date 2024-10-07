@@ -8,7 +8,6 @@ import net.dv8tion.jda.api.entities.channel.ChannelType
 import net.dv8tion.jda.api.entities.emoji.Emoji
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
-import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent
 import net.dv8tion.jda.api.hooks.ListenerAdapter
 import net.dv8tion.jda.api.interactions.commands.OptionType
@@ -99,33 +98,31 @@ object PeopleBot : ListenerAdapter() {
                 "requires the index or name of the song in the queue",
                 true,
                 true
-            ).setGuildOnly(true)
+            ).setGuildOnly(true),
+            Commands.slash("who", "queries who requested the current / specified song")
+                .addOption(
+                    OptionType.STRING,
+                    "index",
+                    "requires the index or name of the song in the queue",
+                    false,
+                    true
+                ).setGuildOnly(true)
         ).apply { queue() }
     }
 
     override fun onSlashCommandInteraction(event: SlashCommandInteractionEvent) {
-        if (event.guild?.id != GUILD_ID) return
-        //if bot isnt in a channel, join author
+        val guild = event.guild ?: return
+        if (guild.id != GUILD_ID) return event.reply("This bot is configured for a different server")
+            .setEphemeral(true).queue()
+
         CoroutineScope(Dispatchers.IO).launch {
             when (event.name) {
                 "play" -> PeopleCommands.playSlashCommand(event)
                 "setnowplayingchannel" -> PeopleCommands.nowPlayingChannelSlashCommand(event)
                 "remove" -> PeopleCommands.removeSlashCommand(event)
                 "clearqueue" -> PeopleCommands.clearQueueSlashCommand(event)
+                "who" -> PeopleCommands.whoSlashCommand(event)
             }
-        }
-
-        super.onSlashCommandInteraction(event)
-    }
-
-    override fun onMessageReceived(event: MessageReceivedEvent) {
-        if (event.guild.id != GUILD_ID) return
-        if (event.author.isBot) return
-
-        val content = event.message.contentRaw.split(" ").firstOrNull()
-        when (content) {
-            "!leave" -> leaveVoiceChannel(event.guild)
-            "!stop" -> stopStreaming(event.guild)
         }
     }
 

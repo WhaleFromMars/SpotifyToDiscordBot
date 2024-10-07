@@ -7,11 +7,6 @@ object PeopleCommands {
 
     fun nowPlayingChannelSlashCommand(event: SlashCommandInteractionEvent) {
         event.deferReply(true)
-        val guild =
-            event.guild ?: return event.reply("This command is only available in servers").setEphemeral(true).queue()
-
-        if (guild.id != PeopleBot.GUILD_ID) return event.reply("This bot is configured for a different server")
-            .setEphemeral(true).queue()
 
         val channel =
             event.getOption("channel")?.asChannel ?: return event.reply("Please provide a channel").setEphemeral(true)
@@ -55,45 +50,55 @@ object PeopleCommands {
 
         val queueSize = SpotifyPlayer.queue.size
 
-        val removedSong = when {
-            userInput.startsWith("index:") -> {
-                val indexStr = userInput.removePrefix("index:")
-                val index = indexStr.toIntOrNull()
-                if (index == null || index !in 0 until queueSize) {
-                    event.reply("Invalid index provided.").setEphemeral(true).queue()
-                    return
-                }
-                val track = SpotifyPlayer.queue[index]
+        val index = userInput.toIntOrNull()?.let { it - 1 }
+        val removedSong = if (index != null && index in 0 until queueSize) {
+            val track = SpotifyPlayer.queue[index]
+            SpotifyPlayer.removeFromQueue(track)
+            track
+        } else {
+            val trackIndex = SpotifyPlayer.queue.indexOfFirst { track ->
+                track.name.equals(userInput, ignoreCase = true) || track.artist.equals(userInput, ignoreCase = true)
+            }
+            if (trackIndex != -1) {
+                val track = SpotifyPlayer.queue[trackIndex]
                 SpotifyPlayer.removeFromQueue(track)
                 track
-            }
-
-            else -> {
-                val index = userInput.toIntOrNull()?.let { it - 1 }
-                if (index != null && index in 0 until queueSize) {
-                    val track = SpotifyPlayer.queue[index]
-                    SpotifyPlayer.removeFromQueue(track)
-                    track
-                } else {
-                    val trackIndex = SpotifyPlayer.queue.indexOfFirst { track ->
-                        track.name.equals(userInput, ignoreCase = true) || track.artist.equals(
-                            userInput, ignoreCase = true
-                        )
-                    }
-                    if (trackIndex != -1) {
-                        val track = SpotifyPlayer.queue[trackIndex]
-                        SpotifyPlayer.removeFromQueue(track)
-                        track
-                    } else {
-                        event.reply("No matching song found in the queue.").setEphemeral(true).queue()
-                        return
-                    }
-                }
+            } else {
+                return event.reply("No matching song found in the queue.").setEphemeral(true).queue()
             }
         }
 
-        event.reply("Removed **${removedSong.name}** by **${removedSong.artist}** from the queue.").setEphemeral(true)
-            .queue()
+        event.reply("Removed **${removedSong.name}** by **${removedSong.artist}** from the queue.").queue()
+    }
+
+    fun whoSlashCommand(event: SlashCommandInteractionEvent) {
+        val option = event.getOption("index")
+        val userInput = option?.asString
+        if (userInput == null) {
+            val requesterID =
+                SpotifyPlayer.currentTrack?.requesterID ?: return event.reply("Unknown Requester").setEphemeral(true)
+                    .queue()
+
+            return event.reply("Song Requested By: <@${requesterID}>").setEphemeral(true).queue()
+        }
+
+        val queueSize = SpotifyPlayer.queue.size
+
+        val index = userInput.toIntOrNull()?.let { it - 1 }
+        val querySong = if (index != null && index in 0 until queueSize) {
+            SpotifyPlayer.queue[index]
+        } else {
+            val trackIndex = SpotifyPlayer.queue.indexOfFirst { track ->
+                track.name.equals(userInput, ignoreCase = true) || track.artist.equals(userInput, ignoreCase = true)
+            }
+            if (trackIndex != -1) {
+                SpotifyPlayer.queue[trackIndex]
+            } else {
+                return event.reply("No matching song found in the queue.").setEphemeral(true).queue()
+            }
+        }
+
+        event.reply("Song Requested By: <@${querySong.requesterID}>").setEphemeral(true).queue()
     }
 
 
@@ -154,7 +159,7 @@ object PeopleCommands {
             }
         }
 
-        val track = tracks.first()
+        val track = tracks.first().apply { this.requesterID = member.id }
         SpotifyPlayer.addToQueue(track)
         PeopleBot.startStreaming(guild)
         event.reply("Added ${track.name} to the queue.").setEphemeral(true).queue()
@@ -198,9 +203,40 @@ object PeopleCommands {
                 val options = tracks.mapIndexedNotNull { i, track ->
                     val displayIndex = i + 1
                     val indexString = displayIndex.toString()
-                    val matchesInput = userInput.isEmpty()
-                            || indexString.startsWith(userInput)
-                            || track.name.contains(userInput, ignoreCase = true)
+                    val matchesInput = userInput.isEmpty() || indexString.startsWith(userInput) || track.name.contains(
+                        userInput,
+                        ignoreCase = true
+                    )
+
+                    if (matchesInput) {
+                        val trackName = if (track.name.length <= 45) track.name else "${track.name.take(45)}..."
+                        val artistName = if (track.artist.length <= 30) track.artist else "${track.artist.take(30)}..."
+                        Choice("$displayIndex. $trackName - $artistName", "$displayIndex")
+                    } else {
+                        null
+                    }
+                }.take(25)
+
+                event.replyChoices(options).queue()
+            }
+
+            event.name == "who" && event.focusedOption.name == "index" -> {
+                val userInput = event.focusedOption.value
+
+                val tracks = SpotifyPlayer.queue
+
+                if (tracks.isEmpty()) {
+                    event.replyChoices(emptyList()).queue()
+                    return
+                }
+
+                val options = tracks.mapIndexedNotNull { i, track ->
+                    val displayIndex = i + 1
+                    val indexString = displayIndex.toString()
+                    val matchesInput = userInput.isEmpty() || indexString.startsWith(userInput) || track.name.contains(
+                        userInput,
+                        ignoreCase = true
+                    )
 
                     if (matchesInput) {
                         val trackName = if (track.name.length <= 45) track.name else "${track.name.take(45)}..."
