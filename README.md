@@ -23,6 +23,7 @@ or modifying this code.
 - [ ] Tracking for a Spotify wrapped alternative
 - [x] Track Requester (/who)
 - [ ] leave vc when its alone, stop playing audio when current track is null
+- [ ] self destruct ephemeral replies after x seconds (5?)
 
 ## Setup Instructions
 
