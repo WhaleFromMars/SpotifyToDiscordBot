@@ -13,6 +13,9 @@ or modifying this code.
     - Shuffle
     - Repeat Queue
 - Rich Embed + Reaction Controls
+ 
+![image](https://github.com/user-attachments/assets/dba42dfa-5f36-4dc8-be3b-0f28ff6842dd)
+
 
 ## Roadmap
 
