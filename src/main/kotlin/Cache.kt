@@ -58,7 +58,6 @@ object Cache {
     }
 
     fun getChannel(): TextChannel? {
-        print(embedChannel)
         if (channelID == null) return null
         if (embedChannel == null || System.currentTimeMillis() - cachelastUpdate > CACHE_RESET_TIME) {
             embedChannel = PeopleBot.jda.getTextChannelById(channelID.toString())

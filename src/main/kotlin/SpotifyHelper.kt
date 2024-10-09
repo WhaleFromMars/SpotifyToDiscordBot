@@ -112,7 +112,6 @@ object SpotifyHelper {
         val timeUntilNextUpdate = max(0, COOLDOWN_DURATION - (currentTime - lastUpdateTime))
 
         if (timeUntilNextUpdate == 0L && !updateScheduled.getAndSet(true)) { // We can update immediately
-            println("Updating embed immediately")
             performUpdate()
         } else if (!updateScheduled.getAndSet(true)) { // Schedule the update
             coroutineScope.launch {
@@ -134,14 +133,11 @@ object SpotifyHelper {
 
         // Check if any relevant information has changed
         if (currentTrack == lastSeenTrack && currentQueuePreview == lastSeenQueue && currentRepeat == lastSeenRepeat && currentPause == lastSeenPause && currentQueueSize == lastSeenQueueSize) {
-            println("Not updating embed: No changes detected")
             updateScheduled.set(false)
             return
         }
 
-        println("Updating embed")
         val channel = Cache.getChannel() ?: run {
-            println("failed to get channel")
             updateScheduled.set(false)
             return
         }
@@ -231,7 +227,6 @@ object SpotifyHelper {
                     "Upcoming Tracks${if (SpotifyPlayer.repeatQueue) " (Looped)" else ""}", "No tracks in queue.", false
                 )
         }
-        println("created embed")
         return embedBuilder.build()
     }
 }
