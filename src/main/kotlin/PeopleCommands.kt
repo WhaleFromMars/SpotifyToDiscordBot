@@ -12,11 +12,11 @@ object PeopleCommands {
             event.getOption("channel")?.asChannel ?: return event.reply("Please provide a channel").setEphemeral(true)
                 .queue()
 
-        PeopleBot.EMBED_CHANNEL_ID = channel.id
-        PeopleBot.CURRENT_TRACK_EMBED_ID = ""
+        Cache.channelID = channel.id
+        Cache.messageID = ""
         channel.asTextChannel().sendMessageEmbeds(SpotifyHelper.createEmbed()).queue { message ->
-            PeopleBot.CURRENT_TRACK_EMBED_ID = message.id
-            PeopleBot.saveMessageIDs()
+            Cache.messageID = message.id
+            Cache.saveChannelAndMessageIDs()
             SpotifyHelper.addReactionsToMessage(message)
         }
 
@@ -106,11 +106,9 @@ object PeopleCommands {
         val member = event.member ?: return
         val guild = event.guild ?: return
 
-        event.deferReply(true)
         val authorVoiceChannel = member.voiceState?.channel
         if (authorVoiceChannel == null) {
-            event.reply("You need to be in a voice channel to use this command.").setEphemeral(true).queue()
-            return
+            return event.reply("You need to be in a voice channel to use this command.").setEphemeral(true).queue()
         }
 
         val botSelfMember = guild.selfMember
@@ -126,43 +124,62 @@ object PeopleCommands {
 
         val songQuery: String = event.getOption("song")?.asString ?: return
         if (songQuery.isBlank()) {
-            event.reply("Please provide a song name or Spotify URL.").setEphemeral(true).queue()
-            return
+            return event.reply("Please provide a song name or Spotify URL.").setEphemeral(true).queue()
         }
 
-        val tracks = when {
+        when { // Playlist link query
+            songQuery.startsWith("https://open.spotify.com/playlist/") -> {
+                val playlistId = songQuery.substringAfter("https://open.spotify.com/playlist/").substringBefore("?si")
+                val playlist = SpotifyHelper.getPlaylist(playlistId)
+                if (playlist == null) {
+                    return event.reply("Couldn't find the playlist.").setEphemeral(true).queue()
+                }
+                val playlistName = playlist.name
+                val totalTracks = playlist.tracks.total
+
+                event.reply("Processing $totalTracks tracks from **$playlistName**.").setEphemeral(true).queue()
+
+                SpotifyHelper.addPlaylistToQueue(playlist)
+                return // Exit as we have already replied
+            }
+
+            // Track link query
             songQuery.startsWith("https://open.spotify.com/track/") -> {
                 val trackId = songQuery.substringAfter("https://open.spotify.com/track/").substringBefore("?si")
                 val track = SpotifyHelper.getTrack(trackId) ?: run {
-                    event.reply("Couldnt match provided link: $songQuery").setEphemeral(true).queue()
-                    return
+                    return event.reply("Couldn't match provided link: $songQuery").setEphemeral(true).queue()
                 }
-                listOf(track)
+                track.requesterID = event.user.id
+                SpotifyPlayer.addToQueue(track)
+                PeopleBot.startStreaming(guild)
+                return event.reply("Added **${track.name}** to the queue.").setEphemeral(true).queue()
             }
 
+            // Autocomplete query
             songQuery.startsWith("id:") -> {
                 val trackId = songQuery.substringAfter("id:")
                 val track = SpotifyHelper.getTrack(trackId) ?: run {
-                    event.reply("Something went wrong").setEphemeral(true).queue()
-                    return
+                    return event.reply("Something went wrong").setEphemeral(true).queue()
                 }
-                listOf(track)
+                track.requesterID = event.user.id
+                SpotifyPlayer.addToQueue(track)
+                PeopleBot.startStreaming(guild)
+                return event.reply("Added **${track.name}** to the queue.").setEphemeral(true).queue()
             }
 
+            // String input query
             else -> {
                 val searchedTracks = SpotifyHelper.searchTrack(songQuery, returnAmount = 1)
                 if (searchedTracks.isNullOrEmpty()) {
-                    event.reply("No tracks found for your query.").setEphemeral(true).queue()
-                    return
+                    return event.reply("No tracks found for your query.").setEphemeral(true).queue()
                 }
-                searchedTracks
+                val track = searchedTracks.first()
+                track.requesterID = event.user.id
+                SpotifyPlayer.addToQueue(track)
+                PeopleBot.startStreaming(guild)
+                return event.reply("Added **${track.name}** to the queue.").setEphemeral(true).queue()
             }
         }
-
-        val track = tracks.first().apply { this.requesterID = member.id }
-        SpotifyPlayer.addToQueue(track)
-        PeopleBot.startStreaming(guild)
-        event.reply("Added ${track.name} to the queue.").setEphemeral(true).queue()
     }
 
     suspend fun handleAutoComplete(event: CommandAutoCompleteInteractionEvent) {
@@ -170,15 +187,13 @@ object PeopleCommands {
             event.name == "play" && event.focusedOption.name == "song" -> {
                 val userInput = event.focusedOption.value
                 if (userInput.isEmpty() || userInput.startsWith("https://open.spotify.com/")) {
-                    event.replyChoices(emptyList()).queue()
-                    return
+                    return event.replyChoices(emptyList()).queue()
                 }
 
                 val tracks = SpotifyHelper.searchTrack(userInput, returnAmount = 5)
 
                 if (tracks.isNullOrEmpty()) {
-                    event.replyChoices(emptyList()).queue()
-                    return
+                    return event.replyChoices(emptyList()).queue()
                 }
 
                 val options = tracks.map { track ->
@@ -204,8 +219,7 @@ object PeopleCommands {
                     val displayIndex = i + 1
                     val indexString = displayIndex.toString()
                     val matchesInput = userInput.isEmpty() || indexString.startsWith(userInput) || track.name.contains(
-                        userInput,
-                        ignoreCase = true
+                        userInput, ignoreCase = true
                     )
 
                     if (matchesInput) {
@@ -234,8 +248,7 @@ object PeopleCommands {
                     val displayIndex = i + 1
                     val indexString = displayIndex.toString()
                     val matchesInput = userInput.isEmpty() || indexString.startsWith(userInput) || track.name.contains(
-                        userInput,
-                        ignoreCase = true
+                        userInput, ignoreCase = true
                     )
 
                     if (matchesInput) {

@@ -18,7 +18,7 @@ object SpotifyPlayer {
     var currentProgress = 0
     var totalLength = 0
 
-    var hasWaitedOnce = false //add a second delay between songs because jank
+    var hasWaitedOnce = false
     var isPaused: Boolean = true
     var repeatQueue: Boolean = false
 
@@ -76,6 +76,11 @@ object SpotifyPlayer {
         SpotifyHelper.updateEmbedMessage()
     }
 
+    fun addBulkToQueue(tracks: List<TrimmedTrack>) {
+        queue.addAll(tracks)
+        SpotifyHelper.updateEmbedMessage()
+    }
+
     fun removeFromQueue(track: TrimmedTrack) {
         queue.remove(track)
         SpotifyHelper.updateEmbedMessage()
@@ -102,11 +107,13 @@ object SpotifyPlayer {
     fun pause() {
         webSocketServer.sendCommand("pause")
         isPaused = true
+        SpotifyHelper.updateEmbedMessage()
     }
 
     fun resume() {
         webSocketServer.sendCommand("play")
         isPaused = false
+        SpotifyHelper.updateEmbedMessage()
     }
 
     fun playUri(uri: String) {
@@ -186,10 +193,9 @@ object SpotifyPlayer {
         SpotifyHelper.updateEmbedMessage()
     }
 
-
     fun shutdownPlayer() {
         pause()
-        PeopleBot.leaveVoiceChannel(PeopleBot.jda.getGuildById(PeopleBot.GUILD_ID)!!)
+        PeopleBot.leaveVoiceChannel(Cache.getGuild())
         webSocketServer.stopServer()
         currentTrack = null
         SpotifyHelper.updateEmbedMessage()

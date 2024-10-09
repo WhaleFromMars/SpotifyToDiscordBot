@@ -6,6 +6,7 @@ import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.entities.Guild
 import net.dv8tion.jda.api.entities.channel.ChannelType
 import net.dv8tion.jda.api.entities.emoji.Emoji
+import net.dv8tion.jda.api.events.guild.GuildAvailableEvent
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
 import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent
@@ -16,15 +17,11 @@ import net.dv8tion.jda.api.interactions.commands.build.OptionData
 import net.dv8tion.jda.api.requests.GatewayIntent
 import net.dv8tion.jda.api.utils.MemberCachePolicy
 import net.dv8tion.jda.api.utils.cache.CacheFlag
-import java.io.File
 
 object PeopleBot : ListenerAdapter() {
     val dotEnv = Dotenv.load()
     val GUILD_ID = dotEnv["DISCORD_GUILD_ID"]
     private val token = dotEnv["DISCORD_BOT_TOKEN"]
-
-    var EMBED_CHANNEL_ID: String = ""
-    var CURRENT_TRACK_EMBED_ID: String = ""
 
     private var isStreaming = false
 
@@ -47,32 +44,12 @@ object PeopleBot : ListenerAdapter() {
     init {
         require(token.isNotEmpty()) { "Missing environment variable: DISCORD_BOT_TOKEN" }
         require(GUILD_ID.isNotEmpty()) { "Missing environment variable: DISCORD_GUILD_ID" }
-        SpotifyHelper
-        loadMessageIDs()
         registerCommands()
     }
 
-    private fun loadMessageIDs() {
-        if (!File("$GUILD_ID.txt").exists()) return
-        try {
-            File("$GUILD_ID.txt").bufferedReader().readLines().let { lines ->
-                EMBED_CHANNEL_ID = lines[0]
-                CURRENT_TRACK_EMBED_ID = lines[1]
-            }
-        } catch (_: Exception) {
-            println("Error loading message IDs")
-            File("$GUILD_ID.txt").delete()
-            EMBED_CHANNEL_ID = ""
-            CURRENT_TRACK_EMBED_ID = ""
-        }
-    }
-
-    fun saveMessageIDs() {
-        File("$GUILD_ID.txt").delete()
-        File("$GUILD_ID.txt").bufferedWriter().use { writer ->
-            writer.write("$EMBED_CHANNEL_ID\n")
-            writer.write("$CURRENT_TRACK_EMBED_ID\n")
-        }
+    override fun onGuildAvailable(event: GuildAvailableEvent) {
+        Cache
+        SpotifyHelper
     }
 
     private fun registerCommands() {
@@ -128,7 +105,7 @@ object PeopleBot : ListenerAdapter() {
 
     override fun onMessageReactionAdd(event: MessageReactionAddEvent) {
         if (event.guild.id != GUILD_ID) return
-        if (event.messageId != CURRENT_TRACK_EMBED_ID) return
+        if (event.messageId != Cache.messageID) return
         if (event.user?.id == jda.selfUser.id) return
         val user = event.user ?: return
 

@@ -1,4 +1,5 @@
 import com.adamratzman.spotify.SpotifyAppApi
+import com.adamratzman.spotify.models.Playlist
 import com.adamratzman.spotify.spotifyAppApi
 import io.github.cdimascio.dotenv.Dotenv
 import kotlinx.coroutines.*
@@ -7,16 +8,27 @@ import net.dv8tion.jda.api.entities.Message
 import net.dv8tion.jda.api.entities.MessageEmbed
 import net.dv8tion.jda.api.entities.emoji.Emoji
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.max
 
+@Suppress("SYNTHETIC_PROPERTY_WITHOUT_JAVA_ORIGIN")
 object SpotifyHelper {
+
     private val dotEnv = Dotenv.load()
     private lateinit var spotify: SpotifyAppApi
 
     private var coverPlaceholderURLs: List<String> = emptyList()
 
+    private const val COOLDOWN_DURATION = 50L //ms
+    private var lastUpdateTime = 0L
+    private val updateScheduled = AtomicBoolean(false)
+    private val coroutineScope = CoroutineScope(Dispatchers.Default)
+
     private var lastSeenTrack: TrimmedTrack? = null
     private var lastSeenQueue: List<String> = emptyList()
+    private var lastSeenQueueSize: Int = 0
     private var lastSeenRepeat: Boolean? = null
+    private var lastSeenPause: Boolean? = null
 
     init {
         runBlocking {
@@ -36,6 +48,45 @@ object SpotifyHelper {
         spotify = spotifyAppApi(clientId, clientSecret).build()
         println("Spotify API initialized.")
     }
+
+    suspend fun getPlaylist(playlistID: String): Playlist? {
+        return spotify.playlists.getPlaylist(playlistID)
+    }
+
+    suspend fun addPlaylistToQueue(playlist: Playlist, requesterID: String? = null) {
+        val itemsPerPage = 50
+
+        // Fetch the initial page to get total tracks
+        val playlistID = playlist.id
+        val initialPlaylistPage = playlist.tracks
+        val totalTracks = playlist.tracks.total
+        val totalPages = (totalTracks + itemsPerPage - 1) / itemsPerPage
+
+        // Process and add the initial batch
+        val initialBatch = initialPlaylistPage.items.mapNotNull {
+            it.track?.asTrack?.let { track ->
+                TrimmedTrack(track).apply { this.requesterID = requesterID ?: "" }
+            }
+        }
+        SpotifyPlayer.addBulkToQueue(initialBatch)
+
+        // Fetch remaining pages in parallel
+        coroutineScope {
+            (1 until totalPages).map { pageIndex ->
+                launch {
+                    val offset = pageIndex * itemsPerPage
+                    val playlist = spotify.playlists.getPlaylistTracks(playlistID, itemsPerPage, offset)
+                    val batch = playlist.items.mapNotNull {
+                        it.track?.asTrack?.let { track ->
+                            TrimmedTrack(track).apply { this.requesterID = requesterID ?: "" }
+                        }
+                    }
+                    SpotifyPlayer.addBulkToQueue(batch)
+                }
+            }
+        }
+    }
+
 
     private fun loadCoverPlaceholders() {
         val file = File("cover_placeholders.txt")
@@ -57,44 +108,83 @@ object SpotifyHelper {
     }
 
     fun updateEmbedMessage() {
-        if (PeopleBot.EMBED_CHANNEL_ID.isEmpty()) return
+        val currentTime = System.currentTimeMillis()
+        val timeUntilNextUpdate = max(0, COOLDOWN_DURATION - (currentTime - lastUpdateTime))
+
+        if (timeUntilNextUpdate == 0L && !updateScheduled.getAndSet(true)) { // We can update immediately
+            println("Updating embed immediately")
+            performUpdate()
+        } else if (!updateScheduled.getAndSet(true)) { // Schedule the update
+            coroutineScope.launch {
+                delay(timeUntilNextUpdate)
+                performUpdate()
+            }
+        } // If updateScheduled is already true, we don't need to do anything
+        // as an update is already scheduled
+    }
+
+    private fun performUpdate() {
+        val currentTime = System.currentTimeMillis()
 
         val currentTrack = SpotifyPlayer.currentTrack
-        val currentQueue = SpotifyPlayer.queue.take(5).map { "${it.name} - ${it.artist}" }
+        val currentQueuePreview = SpotifyPlayer.queue.take(5).map { "${it.name} - ${it.artist}" }
+        val currentQueueSize = SpotifyPlayer.queue.size
         val currentRepeat = SpotifyPlayer.repeatQueue
+        val currentPause = SpotifyPlayer.isPaused
 
         // Check if any relevant information has changed
-        if (currentTrack == lastSeenTrack && currentQueue == lastSeenQueue && lastSeenRepeat == currentRepeat) {
-            return // Nothing has changed
+        if (currentTrack == lastSeenTrack && currentQueuePreview == lastSeenQueue && currentRepeat == lastSeenRepeat && currentPause == lastSeenPause && currentQueueSize == lastSeenQueueSize) {
+            println("Not updating embed: No changes detected")
+            updateScheduled.set(false)
+            return
         }
-        val channel =
-            PeopleBot.jda.getTextChannelById(PeopleBot.EMBED_CHANNEL_ID) ?: return //expensive so fail after cheap stuff
+
+        println("Updating embed")
+        val channel = Cache.getChannel() ?: run {
+            println("failed to get channel")
+            updateScheduled.set(false)
+            return
+        }
+
         // Update last known state
         lastSeenTrack = currentTrack
-        lastSeenQueue = currentQueue
+        lastSeenQueue = currentQueuePreview
         lastSeenRepeat = SpotifyPlayer.repeatQueue
+        lastSeenPause = SpotifyPlayer.isPaused
+        lastSeenQueueSize = currentQueueSize
 
         val embed = createEmbed()
 
-        val messageId = PeopleBot.CURRENT_TRACK_EMBED_ID
-        if (messageId.isEmpty()) {
+        val messageId = Cache.messageID
+        if (messageId == null) {
             channel.sendMessageEmbeds(embed).queue { message ->
-                PeopleBot.CURRENT_TRACK_EMBED_ID = message.id
-                PeopleBot.saveMessageIDs()
+                Cache.messageID = message.id
+                Cache.saveChannelAndMessageIDs()
                 addReactionsToMessage(message)
+                lastUpdateTime = currentTime
+                updateScheduled.set(false)
             }
-        } else {
-            channel.retrieveMessageById(messageId).queue({ message ->
-                message.editMessageEmbeds(embed).queue()
-            }, { throwable ->
-                // Handle failure, e.g., message not found or deleted
-                channel.sendMessageEmbeds(embed).queue { newMessage ->
-                    PeopleBot.CURRENT_TRACK_EMBED_ID = newMessage.id
-                    PeopleBot.saveMessageIDs()
-                    addReactionsToMessage(newMessage)
-                }
-            })
+            return
         }
+
+        channel.editMessageEmbedsById(messageId, embed)
+            .queue(
+                {
+                    lastUpdateTime = currentTime
+                    updateScheduled.set(false)
+                },
+                { throwable ->
+                    // Handle failure, e.g., message not found or deleted
+                    println("Failed to edit message: ${throwable.message}")
+                    channel.sendMessageEmbeds(embed).queue { newMessage ->
+                        Cache.messageID = newMessage.id
+                        Cache.saveChannelAndMessageIDs()
+                        addReactionsToMessage(newMessage)
+                        lastUpdateTime = currentTime
+                        updateScheduled.set(false)
+                    }
+                }
+            )
     }
 
     fun addReactionsToMessage(message: Message) {
@@ -116,10 +206,9 @@ object SpotifyHelper {
         val track = SpotifyPlayer.currentTrack
 
         if (track != null) {
-            embedBuilder
-                .setThumbnail(track.albumCover)
-                .addField("Track", "[${track.name}](${track.url})", false)
-                .addField("Artist", "[${track.artist}](${track.artistUrl})", false)
+            embedBuilder.setThumbnail(track.albumCover).addField(
+                "Track${if (SpotifyPlayer.isPaused) " (Paused)" else ""}", "[${track.name}](${track.url})", false
+            ).addField("Artist", "[${track.artist}](${track.artistUrl})", false)
 
             val nextTracks = SpotifyPlayer.queue.take(5)
             if (nextTracks.isNotEmpty()) {
@@ -132,24 +221,17 @@ object SpotifyHelper {
                 )
             } else {
                 embedBuilder.addField(
-                    "Upcoming Tracks${if (SpotifyPlayer.repeatQueue) " (Looped)" else ""}",
-                    "No tracks in queue.",
-                    false
+                    "Upcoming Tracks${if (SpotifyPlayer.repeatQueue) " (Looped)" else ""}", "No tracks in queue.", false
                 )
             }
         } else {
             val placeholderThumbnail = if (coverPlaceholderURLs.isNotEmpty()) coverPlaceholderURLs.random() else null
-            embedBuilder
-                .setThumbnail(placeholderThumbnail)
-                .addField("Track", "N/A", false)
-                .addField("Artist", "N/A", false)
-                .addField(
-                    "Upcoming Tracks${if (SpotifyPlayer.repeatQueue) " (Looped)" else ""}",
-                    "No tracks in queue.",
-                    false
+            embedBuilder.setThumbnail(placeholderThumbnail).addField("Track", "N/A", false)
+                .addField("Artist", "N/A", false).addField(
+                    "Upcoming Tracks${if (SpotifyPlayer.repeatQueue) " (Looped)" else ""}", "No tracks in queue.", false
                 )
         }
-
+        println("created embed")
         return embedBuilder.build()
     }
 }
