@@ -21,7 +21,7 @@ or modifying this code.
 
 - [x] clean up looping to re-add to the queue right away/fix general wonkiness
 - [x] fix removing from queue
-- [ ] implement caching of message/channel for up to 7(/15) days
+- [x] implement caching of channel for up to 7(/15) days
 - [ ] Audio processing
 - [ ] In the same vein -> clip/trim the fuzz on initial playback
 - [ ] Tracking for a Spotify wrapped alternative
