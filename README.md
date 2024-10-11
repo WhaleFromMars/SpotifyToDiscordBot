@@ -105,6 +105,12 @@ marketplace of spicetify plugins that may help.
 You may provide URL links for the embed thumbnail when no track is playing. Add them to the `cover_placeholders.txt`
 file, one URL per line. The bot will pick one at random each time it returns to the no track playing state.
 
+## Known Issues
+
+Issue: Skipping one song may cause many skips to occur in a row.
+Reason: Minimising Spotify on a free account with adblock can trigger this, if you open it on a second monitor, it
+should be fixed.
+
 ## Notes
 
 - Windows is the primary supported platform. Linux and Mac support may be possible but is not provided out of the box,
