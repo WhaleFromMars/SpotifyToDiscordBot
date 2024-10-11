@@ -1,15 +1,20 @@
+import data.TrimmedTrack
+import helpers.EmbedHelper
+import helpers.EmbedHelper.EmbedState
 import io.github.cdimascio.dotenv.Dotenv
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
+import java.util.LinkedHashSet
 import kotlin.time.Duration.Companion.seconds
 
 object SpotifyPlayer {
+
     private val webSocketServer = SpotWebSocketServer
-    private val dotEnv = Dotenv.load()
+    private val dotEnv = Dotenv.configure().ignoreIfMissing().load()
     private val spotifyPath = dotEnv["SPOTIFY_EXE_PATH"] ?: ""
 
-    var queue: MutableList<TrimmedTrack> = mutableListOf()
-    var previousQueue: MutableList<TrimmedTrack> = mutableListOf()
+    val queue: LinkedHashSet<TrimmedTrack> = LinkedHashSet()
+    private val previousQueue: LinkedHashSet<TrimmedTrack> = LinkedHashSet()
     var songsPlayed = 0
 
     var lastUpdate = 0
@@ -19,8 +24,8 @@ object SpotifyPlayer {
     var totalLength = 0
 
     var hasWaitedOnce = false
-    var isPaused: Boolean = true
-    var repeatQueue: Boolean = false
+    var isPaused = false
+    var repeatQueue = false
 
     suspend fun initialize() {
         require(spotifyPath.isNotEmpty()) { "Missing environment variable: SPOTIFY_EXE_PATH" }
@@ -58,42 +63,78 @@ object SpotifyPlayer {
     }
 
     fun updateFromJson(jsonData: String) {
-        val jsonElement = Json.parseToJsonElement(jsonData)
-        val jsonObject = jsonElement.jsonObject
+        val jsonObject = Json.parseToJsonElement(jsonData).jsonObject
 
         lastUpdate = jsonObject["timestamp"]?.jsonPrimitive?.intOrNull ?: lastUpdate
         isPaused = jsonObject["isPaused"]?.jsonPrimitive?.booleanOrNull ?: isPaused
         totalLength = jsonObject["duration"]?.jsonPrimitive?.intOrNull ?: totalLength
         currentProgress = jsonObject["positionAsOfTimestamp"]?.jsonPrimitive?.intOrNull ?: currentProgress
+
+        EmbedHelper.updateEmbedMessage()
+    }
+
+    fun getEmbedState(): EmbedState {
+        return EmbedState(
+            currentTrack,
+            queue.take(5).map { "${it.name} - ${it.artist} " },
+            queue.size,
+            repeatQueue,
+            isPaused
+        )
     }
 
     fun updateProgress(progress: Int) {
         currentProgress = progress
     }
 
-    fun addToQueue(track: TrimmedTrack) {
-        queue.add(track)
-        SpotifyHelper.updateEmbedMessage()
+    /**
+     * Adds a track to the queue
+     * @return true if the track was added
+     */
+    fun addToQueue(track: TrimmedTrack): Boolean {
+        val added = queue.add(track)
+        if (added) {
+            EmbedHelper.updateEmbedMessage()
+        }
+        return added
     }
 
-    fun addBulkToQueue(tracks: List<TrimmedTrack>) {
+    /**
+     * Adds a list of tracks to the queue
+     * @return the number of tracks added
+     */
+    fun addBulkToQueue(tracks: List<TrimmedTrack>, updateEmbed: Boolean = true): Int {
+        val initialSize = queue.size
         queue.addAll(tracks)
-        SpotifyHelper.updateEmbedMessage()
+        val addedCount = queue.size - initialSize
+        if (addedCount > 0 && updateEmbed) {
+            EmbedHelper.updateEmbedMessage()
+        }
+        return addedCount
     }
 
-    fun removeFromQueue(track: TrimmedTrack) {
-        queue.remove(track)
-        SpotifyHelper.updateEmbedMessage()
+    /**
+     * Removes a track from the queue
+     * @return true if the track was removed
+     */
+    fun removeFromQueue(track: TrimmedTrack): Boolean {
+        val removed = queue.remove(track)
+        if (removed) {
+            EmbedHelper.updateEmbedMessage()
+        }
+        return removed
     }
 
     fun clearQueue() {
         queue.clear()
-        SpotifyHelper.updateEmbedMessage()
+        EmbedHelper.updateEmbedMessage()
     }
 
     fun shuffle() {
-        queue.shuffle()
-        SpotifyHelper.updateEmbedMessage()
+        val shuffled = queue.toList().shuffled()
+        queue.clear()
+        queue.addAll(shuffled)
+        EmbedHelper.updateEmbedMessage()
     }
 
     fun togglePause() {
@@ -107,13 +148,13 @@ object SpotifyPlayer {
     fun pause() {
         webSocketServer.sendCommand("pause")
         isPaused = true
-        SpotifyHelper.updateEmbedMessage()
+        EmbedHelper.updateEmbedMessage()
     }
 
     fun resume() {
         webSocketServer.sendCommand("play")
         isPaused = false
-        SpotifyHelper.updateEmbedMessage()
+        EmbedHelper.updateEmbedMessage()
     }
 
     fun playUri(uri: String) {
@@ -130,7 +171,7 @@ object SpotifyPlayer {
 
     fun toggleRepeat() {
         repeatQueue = !repeatQueue
-        SpotifyHelper.updateEmbedMessage()
+        EmbedHelper.updateEmbedMessage()
     }
 
     fun normaliseSpotify() {
@@ -140,7 +181,6 @@ object SpotifyPlayer {
     }
 
     fun playNext() {
-        // If looping is enabled, add the current track back to the end of the queue
         currentTrack?.let {
             if (repeatQueue) {
                 queue.add(it)
@@ -150,65 +190,78 @@ object SpotifyPlayer {
         }
 
         if (queue.isNotEmpty()) {
-            val nextTrack = queue.removeAt(0)
+            val nextTrack = queue.first()
+            queue.remove(nextTrack)
             playUri(nextTrack.uri)
             currentTrack = nextTrack
             currentProgress = 1
             hasWaitedOnce = false
+            isPaused = false
         } else {
             currentTrack = null
             isPaused = true
             songsPlayed = 0
         }
-        SpotifyHelper.updateEmbedMessage()
+        EmbedHelper.updateEmbedMessage()
         songsPlayed++
+    }
+
+    fun skipCurrent() {
+        if (queue.isNotEmpty()) {
+            playNext()
+        } else {
+            pause()
+            currentTrack = null
+            EmbedHelper.updateEmbedMessage()
+        }
     }
 
     fun playPrevious() {
         if (previousQueue.isNotEmpty()) {
-            // Remove the previous track from previousQueue
-            val prevTrack = previousQueue.removeAt(previousQueue.size - 1)
-            currentTrack?.let { queue.addFirst(it) }
+            val prevTrack = previousQueue.last()
+            previousQueue.remove(prevTrack)
+            currentTrack?.let { queue.add(it) }
             currentTrack = prevTrack
             playUri(prevTrack.uri)
 
             isPaused = false
             currentProgress = 1
             hasWaitedOnce = false
-        } else if (repeatQueue) {
-            // When looping is enabled and there are no previous tracks
-            if (queue.isNotEmpty()) {
-                val lastTrack = queue.removeAt(queue.size - 1)
-                currentTrack = lastTrack
-                playUri(lastTrack.uri)
+        } else if (repeatQueue && queue.isNotEmpty()) {
+            val lastTrack = queue.last()
+            queue.remove(lastTrack)
+            currentTrack = lastTrack
+            playUri(lastTrack.uri)
 
-                isPaused = false
-                currentProgress = 1
-                hasWaitedOnce = false
-            }
+            isPaused = false
+            currentProgress = 1
+            hasWaitedOnce = false
         } else {
             // No previous tracks and looping is disabled
-            // Cba to drill the user here but we can tell them
         }
-        SpotifyHelper.updateEmbedMessage()
+        EmbedHelper.updateEmbedMessage()
     }
 
     fun shutdownPlayer() {
         pause()
-        PeopleBot.leaveVoiceChannel(Cache.getGuild())
+        PeopleBot.leaveVoiceChannel()
         webSocketServer.stopServer()
         currentTrack = null
-        SpotifyHelper.updateEmbedMessage()
+        queue.clear()
+        previousQueue.clear()
+        songsPlayed = 0
+        EmbedHelper.updateEmbedMessage()
     }
 
-    fun initiatePlaybackLoop() {
-        CoroutineScope(Dispatchers.Default).launch {
+    @Suppress("SYNTHETIC_PROPERTY_WITHOUT_JAVA_ORIGIN")
+    private fun initiatePlaybackLoop() {
+        PeopleBot.scope.launch {
             while (true) {
-                delay(1000)
-                if (currentTrack == null && queue.isEmpty()) {
+                delay(500)
+                if (currentTrack == null && queue.isEmpty) {
                     isPaused = true
                     songsPlayed = 0
-                    SpotifyHelper.updateEmbedMessage()
+                    EmbedHelper.updateEmbedMessage()
                     continue
                 }
 
