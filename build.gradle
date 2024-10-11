@@ -20,6 +20,9 @@ dependencies {
     implementation("com.github.wendykierp:JTransforms:${project.jTransformsVersion}")
     implementation("org.java-websocket:Java-WebSocket:${project.javaWebSocketVersion}")
 
+    implementation("ch.qos.logback:logback-classic:${project.logbackClassicVersion}")
+    implementation("io.github.oshai:kotlin-logging-jvm:${project.kotlinLoggingVersion}")
+
     testImplementation("org.jetbrains.kotlin:kotlin-test")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
