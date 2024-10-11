@@ -5,11 +5,11 @@ import java.io.File
 
 object Cache {
 
-    private val dotEnv = Dotenv.load()
+    private val dotEnv = Dotenv.configure().ignoreIfMissing().load()
     private const val CACHE_RESET_TIME = 1000 * 60 * 60 * 24 * 7 // 7 days
     var channelID: String? = null
     var messageID: String? = null
-    var guildID: String = dotEnv["DISCORD_GUILD_ID"]
+    var guildID: String = dotEnv["DISCORD_GUILD_ID"] ?: ""
     private var guild: Guild = PeopleBot.jda.getGuildById(guildID) ?: throw Exception("Guild not found")
     private var embedChannel: TextChannel? = null
     private var cachelastUpdate: Long = 0

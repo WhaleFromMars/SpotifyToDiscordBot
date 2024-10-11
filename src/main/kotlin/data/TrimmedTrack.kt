@@ -1,3 +1,5 @@
+package data
+
 import com.adamratzman.spotify.models.Track
 
 class TrimmedTrack {

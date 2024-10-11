@@ -3,7 +3,8 @@ import java.nio.ByteBuffer
 import javax.sound.sampled.*
 
 object AudioStreamHandler : AudioSendHandler {
-    private val cableName = PeopleBot.dotEnv["CABLE_NAME"]
+
+    private val cableName = PeopleBot.dotEnv["CABLE_NAME"] ?: ""
 
     private var line: TargetDataLine? = null
     private const val BUFFER_SIZE = 960 * 2 // Frames per buffer (20ms of audio at 48kHz) * 2 channels
@@ -15,32 +16,31 @@ object AudioStreamHandler : AudioSendHandler {
     }
 
     fun startCapture(): Boolean {
-        try {
+        return try {
             val format = AudioFormat(48000f, 16, 2, true, true)
             val info = DataLine.Info(TargetDataLine::class.java, format)
 
             if (!AudioSystem.isLineSupported(info)) {
                 println("Line not supported")
-                return false
+                false
+            } else {
+                val mixer = AudioSystem.getMixerInfo().find { it.name == cableName }?.let { AudioSystem.getMixer(it) }
+
+                if (mixer == null) {
+                    println("$cableName not found.")
+                    false
+                } else {
+                    line = (mixer.getLine(info) as TargetDataLine).apply {
+                        open(format, bufferSize)
+                        start()
+                    }
+                    println("Audio capture started.")
+                    true
+                }
             }
-
-            val mixer = AudioSystem.getMixerInfo().find { it.name == cableName }?.let { AudioSystem.getMixer(it) }
-
-            if (mixer == null) {
-                println("$cableName not found.")
-                return false
-            }
-
-            line = (mixer.getLine(info) as TargetDataLine).apply {
-                open(format, bufferSize)
-                start()
-            }
-
-            println("Audio capture started.")
-            return true
         } catch (e: Exception) {
             println("Failed to start capture: ${e.message}")
-            return false
+            false
         }
     }
 
@@ -78,7 +78,7 @@ object AudioStreamHandler : AudioSendHandler {
         }
     }
 
-    fun applyEffects(bytesRead: Int): Int {
+    private fun applyEffects(bytesRead: Int): Int {
         // Apply effects here
         // Example: bass boost it, wont support speed as its a stream of audio
 
