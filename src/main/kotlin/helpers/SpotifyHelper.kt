@@ -45,7 +45,7 @@ object SpotifyHelper {
             // Launch all page fetches in parallel
             val fetchJobs = (0 until totalPages).map { page ->
                 launch(Dispatchers.IO + SupervisorJob()) {
-                    println("Processing page $page")
+                    //                    println("Processing page $page")
                     fetchAndProcessPage(
                         page, itemsPerPage, playlistID, requesterID, removalStats
                     )
@@ -53,12 +53,12 @@ object SpotifyHelper {
             }
 
             fetchJobs.joinAll() // Wait for all fetch jobs to complete
-            delay(100)
+            //            delay(100)
             EmbedHelper.updateEmbedMessage(forceUpdate = true)
 
-            println("Tracks removed due to being null: ${removalStats.nullTracks.get()}")
-            println("Tracks removed due to being unplayable: ${removalStats.unplayableTracks.get()}")
-            println("Tracks removed due to being local: ${removalStats.localTracks.get()}")
+            //            println("Tracks removed due to being null: ${removalStats.nullTracks.get()}")
+            //            println("Tracks removed due to being unplayable: ${removalStats.unplayableTracks.get()}")
+            //            println("Tracks removed due to being local: ${removalStats.localTracks.get()}")
         }
     }
 

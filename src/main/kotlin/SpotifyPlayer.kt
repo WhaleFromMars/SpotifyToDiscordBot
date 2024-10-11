@@ -66,7 +66,7 @@ object SpotifyPlayer {
         val jsonObject = Json.parseToJsonElement(jsonData).jsonObject
 
         lastUpdate = jsonObject["timestamp"]?.jsonPrimitive?.intOrNull ?: lastUpdate
-        isPaused = jsonObject["isPaused"]?.jsonPrimitive?.booleanOrNull ?: isPaused
+        //        isPaused = jsonObject["isPaused"]?.jsonPrimitive?.booleanOrNull ?: isPaused
         totalLength = jsonObject["duration"]?.jsonPrimitive?.intOrNull ?: totalLength
         currentProgress = jsonObject["positionAsOfTimestamp"]?.jsonPrimitive?.intOrNull ?: currentProgress
 
