@@ -28,7 +28,7 @@ object EmbedHelper {
     private var lastUpdateTime = 0L
     private val updateScheduled = AtomicBoolean(false)
 
-    private var lastSeenState: EmbedState? = null
+    private var lastSentState: EmbedState? = null
 
     init {
         loadCoverPlaceholders()
@@ -80,7 +80,7 @@ object EmbedHelper {
         val currentState = SpotifyPlayer.getEmbedState()
 
         // Skip state check if forceUpdate is true
-        if (!forceUpdate && currentState == lastSeenState) {
+        if (!forceUpdate && currentState == lastSentState) {
             //            println("same state, not updating")
             updateScheduled.set(false)
             return
@@ -88,8 +88,6 @@ object EmbedHelper {
         //        println("state diff:")
         //        println(currentState)
         //        println(lastSeenState)
-
-        lastSeenState = currentState
 
         val channel = Cache.getChannel() ?: run {
             updateScheduled.set(false)
@@ -128,6 +126,7 @@ object EmbedHelper {
     }
 
     fun createEmbed(state: EmbedState): MessageEmbed {
+        lastSentState = state
         val embedBuilder = EmbedBuilder()
         val placeholderThumbnail = coverPlaceholderURLs.randomOrNull() ?: FALLBACK_COVER_URL
 

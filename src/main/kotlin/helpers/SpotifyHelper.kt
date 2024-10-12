@@ -104,6 +104,7 @@ object SpotifyHelper {
     }
 
     suspend fun getTrack(id: String): TrimmedTrack? {
+        //TODO:: market check, dont add if unavailable, no idea how to get user market rn
         val track = spotify.tracks.getTrack(id)
         return if (track != null) TrimmedTrack(track) else null
     }

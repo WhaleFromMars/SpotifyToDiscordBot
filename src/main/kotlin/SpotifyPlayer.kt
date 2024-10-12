@@ -236,8 +236,6 @@ object SpotifyPlayer {
             isPaused = false
             currentProgress = 1
             hasWaitedOnce = false
-        } else {
-            // No previous tracks and looping is disabled
         }
         EmbedHelper.updateEmbedMessage()
     }
@@ -257,7 +255,7 @@ object SpotifyPlayer {
     private fun initiatePlaybackLoop() {
         PeopleBot.scope.launch {
             while (true) {
-                delay(500)
+                delay(1000)
                 if (currentTrack == null && queue.isEmpty) {
                     isPaused = true
                     songsPlayed = 0
