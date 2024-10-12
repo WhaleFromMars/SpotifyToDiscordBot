@@ -60,7 +60,8 @@ marketplace of spicetify plugins that may help.
    ```
 3. Launch Spotify once, then close it
 4. Navigate to `%appdata%/spicetify/Extensions`
-5. Move the `local-api.js` file from this repository into the Extensions folder
+5. Move the `spicetify-local-api.js` file into the folder from the releases
+   tab [here](https://github.com/WhaleFromMars/SpicetifyLocalAPI)
 6. In PowerShell or CMD, run:
    ```
    spicetify apply
