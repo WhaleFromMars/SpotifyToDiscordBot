@@ -1,6 +1,7 @@
 import net.dv8tion.jda.api.audio.AudioSendHandler
 import java.nio.ByteBuffer
 import javax.sound.sampled.*
+import kotlin.math.sqrt
 
 object AudioStreamHandler : AudioSendHandler {
 
@@ -45,26 +46,44 @@ object AudioStreamHandler : AudioSendHandler {
     }
 
     override fun canProvide(): Boolean {
-        return line?.let { line ->
-            try {
-                var bytesRead = line.read(buffer, 0, buffer.size)
-                if (bytesRead > 0) {
-                    bytesRead = applyEffects(bytesRead)
-                    lastFrame = ByteBuffer.wrap(buffer, 0, bytesRead)
-                    true
-                } else {
-                    println("Failed to read from line.")
-                    false
-                }
-            } catch (e: Exception) {
-                println("Failed to read line: ${e.message}")
-                false
+        val line = this.line ?: return false
+
+        return try {
+            val bytesRead = line.read(buffer, 0, buffer.size).takeIf { it > 0 } ?: run {
+                println("Failed to read from line.")
+                return false
             }
-        } ?: false
+
+            if (isSilent(buffer, bytesRead)) {
+                lastFrame = null
+                return false
+            }
+            val adjustedBytesRead = applyEffects(bytesRead)
+            val potentialFrame = ByteBuffer.wrap(buffer, 0, adjustedBytesRead)
+            lastFrame = potentialFrame
+            true
+        } catch (e: Exception) {
+            println("Failed to read line: ${e.message}")
+            false
+        }
+    }
+
+    // Chat-GPT checks if audio is silent, hopefully, my attempted caused white noise x)
+    private fun isSilent(buffer: ByteArray, bytesRead: Int, threshold: Double = 0.01): Boolean {
+        var sum = 0.0
+        for (i in 0 until bytesRead step 2) {
+            val sample = (buffer[i + 1].toInt() shl 8) or (buffer[i].toInt() and 0xFF)
+            val normalizedSample = sample / 32768.0
+            sum += normalizedSample * normalizedSample
+        }
+        val rms = sqrt(sum / (bytesRead / 2))
+        return rms < threshold
     }
 
     override fun provide20MsAudio(): ByteBuffer? {
-        return lastFrame.also { lastFrame = null }
+        return lastFrame.also {
+            lastFrame = null
+        }
     }
 
     override fun isOpus(): Boolean = false
