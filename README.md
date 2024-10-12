@@ -21,6 +21,7 @@ or modifying this code.
 ## Roadmap
 
 - [ ] Audio processing
+- [ ] Use Spicetify to handle all queueing (revamp it completely...) 
 - [ ] In the same vein -> clip/trim the fuzz on initial playback
 - [ ] Tracking for a Spotify wrapped alternative
 - [ ] leave vc when its alone, stop playing audio when current track is null
