@@ -20,6 +20,7 @@ or modifying this code.
 
 ## Roadmap
 
+- [ ] (x11)docker container for running on a vps
 - [ ] Audio processing
 - [ ] Use Spicetify to handle all queueing (revamp it completely...) 
 - [ ] In the same vein -> clip/trim the fuzz on initial playback
