@@ -51,13 +51,13 @@ object SpotifyPlayer {
     }
 
     private fun isLocalSpotifyRunning(): Boolean {
-        val processName = if (System.getProperty("os.name").startsWith("Windows")) {
-            "Spotify.exe"
-        } else {
-            "spotify"
+        if (System.getProperty("os.name").startsWith("Windows")) {
+            return ProcessHandle.allProcesses()
+                .anyMatch { it.info().command().map { cmd -> File(cmd).name }.orElse("") == "Spotify.exe" }
         }
-        return ProcessHandle.allProcesses()
-            .anyMatch { it.info().command().map { cmd -> File(cmd).name }.orElse("") == processName }
+        return ProcessHandle.allProcesses().anyMatch { process ->
+            process.info().commandLine().map { cmdLine -> cmdLine.contains("spotify") }.orElse(false)
+        }
     }
 
     private suspend fun waitForSpotifyToStart() {
@@ -75,8 +75,8 @@ object SpotifyPlayer {
     fun updateFromJson(jsonData: String) {
         val jsonObject = Json.parseToJsonElement(jsonData).jsonObject
 
-        lastUpdate = jsonObject["timestamp"]?.jsonPrimitive?.intOrNull ?: lastUpdate
-        //        isPaused = jsonObject["isPaused"]?.jsonPrimitive?.booleanOrNull ?: isPaused
+        lastUpdate = jsonObject["timestamp"]?.jsonPrimitive?.intOrNull
+            ?: lastUpdate //        isPaused = jsonObject["isPaused"]?.jsonPrimitive?.booleanOrNull ?: isPaused
         totalLength = jsonObject["duration"]?.jsonPrimitive?.intOrNull ?: totalLength
         currentProgress = jsonObject["positionAsOfTimestamp"]?.jsonPrimitive?.intOrNull ?: currentProgress
 
@@ -85,11 +85,7 @@ object SpotifyPlayer {
 
     fun getEmbedState(): EmbedState {
         return EmbedState(
-            currentTrack,
-            queue.take(5).map { "${it.name} - ${it.artist} " },
-            queue.size,
-            repeatQueue,
-            isPaused
+            currentTrack, queue.take(5).map { "${it.name} - ${it.artist} " }, queue.size, repeatQueue, isPaused
         )
     }
 
