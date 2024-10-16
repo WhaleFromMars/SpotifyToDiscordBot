@@ -4,6 +4,7 @@ import helpers.EmbedHelper.EmbedState
 import io.github.cdimascio.dotenv.Dotenv
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
+import java.io.File
 import java.util.LinkedHashSet
 import kotlin.time.Duration.Companion.seconds
 
@@ -11,7 +12,11 @@ object SpotifyPlayer {
 
     private val webSocketServer = SpotWebSocketServer
     private val dotEnv = Dotenv.configure().ignoreIfMissing().load()
-    private val spotifyPath = dotEnv["SPOTIFY_EXE_PATH"] ?: ""
+    val spotifyPath: String = if (System.getProperty("os.name").startsWith("Windows")) {
+        dotEnv["SPOTIFY_EXE_PATH"] ?: ""
+    } else {
+        "/usr/bin/spotify"
+    }
 
     val queue: LinkedHashSet<TrimmedTrack> = LinkedHashSet()
     private val previousQueue: LinkedHashSet<TrimmedTrack> = LinkedHashSet()
@@ -46,8 +51,13 @@ object SpotifyPlayer {
     }
 
     private fun isLocalSpotifyRunning(): Boolean {
+        val processName = if (System.getProperty("os.name").startsWith("Windows")) {
+            "Spotify.exe"
+        } else {
+            "spotify"
+        }
         return ProcessHandle.allProcesses()
-            .anyMatch { it.info().command().orElse("").endsWith("Spotify.exe", ignoreCase = true) }
+            .anyMatch { it.info().command().map { cmd -> File(cmd).name }.orElse("") == processName }
     }
 
     private suspend fun waitForSpotifyToStart() {
