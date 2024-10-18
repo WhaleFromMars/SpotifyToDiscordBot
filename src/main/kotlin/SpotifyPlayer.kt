@@ -55,14 +55,28 @@ object SpotifyPlayer {
             return ProcessHandle.allProcesses()
                 .anyMatch { it.info().command().map { cmd -> File(cmd).name }.orElse("") == "Spotify.exe" }
         }
-        return ProcessHandle.allProcesses().anyMatch { process ->
-            process.info().commandLine().map { cmdLine -> cmdLine.contains("spotify") }.orElse(false)
+        return try {
+            val process = ProcessBuilder("ps", "-A").start()
+            val output = process.inputStream.bufferedReader().use { it.readText() }
+
+            // Check if spotify process exists in the output
+            output.lowercase().lines().any { line ->
+                line.contains("spotify")
+            }
+        } catch (e: Exception) {
+            println("Error checking processes: ${e.message}")
+            false
         }
     }
 
     private suspend fun waitForSpotifyToStart() {
         withContext(Dispatchers.IO) {
-            ProcessBuilder(spotifyPath).start()
+            if (System.getProperty("os.name").startsWith("Windows")) {
+                ProcessBuilder(spotifyPath).start()
+
+            } else {
+                ProcessBuilder().command("/usr/bin/spotify").start()
+            }
         }
         withTimeout(30.seconds) {
             while (!isLocalSpotifyRunning()) {
