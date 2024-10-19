@@ -4,41 +4,52 @@ import javax.sound.sampled.*
 import kotlin.math.sqrt
 
 object AudioStreamHandler : AudioSendHandler {
-
     private val cableName = PeopleBot.dotEnv["CABLE_NAME"] ?: ""
+    private val isWindows = System.getProperty("os.name").lowercase().contains("windows")
 
     private var line: TargetDataLine? = null
-    private const val BUFFER_SIZE = 960 * 2 // Frames per buffer (20ms of audio at 48kHz) * 2 channels
-    private val buffer = ByteArray(BUFFER_SIZE * 2) // *2 because we're using 16-bit samples
+    private const val BUFFER_SIZE = 960 * 2
+    private val buffer = ByteArray(BUFFER_SIZE * 2)
     private var lastFrame: ByteBuffer? = null
 
     init {
-        require(cableName.isNotEmpty()) { "CABLE_NAME environment variable not set." }
+        if (isWindows && cableName.isEmpty()) {
+            throw IllegalStateException("CABLE_NAME environment variable must be set for Windows.")
+        }
     }
 
     fun startCapture(): Boolean {
         return try {
-            val format = AudioFormat(48000f, 16, 2, true, true)
+            val format = if (isWindows) {AudioFormat(48000f, 16, 2, true, true)} else {
+                AudioFormat(44100f, 16, 2, true, true)
+            }
             val info = DataLine.Info(TargetDataLine::class.java, format)
 
             if (!AudioSystem.isLineSupported(info)) {
                 println("Line not supported")
-                false
-            } else {
-                val mixer = AudioSystem.getMixerInfo().find { it.name == cableName }?.let { AudioSystem.getMixer(it) }
-
-                if (mixer == null) {
-                    println("$cableName not found.")
-                    false
-                } else {
-                    line = (mixer.getLine(info) as TargetDataLine).apply {
-                        open(format, bufferSize)
-                        start()
-                    }
-                    println("Audio capture started.")
-                    true
-                }
+                return false
             }
+            val mixer = if (isWindows) {
+                AudioSystem.getMixerInfo()
+                    .find { it.name == cableName || it.description == cableName }
+                    ?.let { AudioSystem.getMixer(it) }
+            } else {
+                AudioSystem.getMixerInfo()
+                    .find { it.name.contains("PulseAudio") || it.name.contains("default") }
+                    ?.let { AudioSystem.getMixer(it) }
+            }
+
+            if (mixer == null) {
+                println("No suitable audio source found.")
+                return false
+            }
+
+            line = (mixer.getLine(info) as TargetDataLine).apply {
+                open(format, bufferSize)
+                start()
+            }
+            println("Audio capture started.")
+            true
         } catch (e: Exception) {
             println("Failed to start capture: ${e.message}")
             false
@@ -58,9 +69,7 @@ object AudioStreamHandler : AudioSendHandler {
                 lastFrame = null
                 return false
             }
-            val adjustedBytesRead = applyEffects(bytesRead)
-            val potentialFrame = ByteBuffer.wrap(buffer, 0, adjustedBytesRead)
-            lastFrame = potentialFrame
+            lastFrame = ByteBuffer.wrap(buffer, 0, bytesRead)
             true
         } catch (e: Exception) {
             println("Failed to read line: ${e.message}")
@@ -68,7 +77,6 @@ object AudioStreamHandler : AudioSendHandler {
         }
     }
 
-    // Chat-GPT checks if audio is silent, hopefully, my attempted caused white noise x)
     private fun isSilent(buffer: ByteArray, bytesRead: Int, threshold: Double = 0.01): Boolean {
         var sum = 0.0
         for (i in 0 until bytesRead step 2) {
@@ -80,11 +88,7 @@ object AudioStreamHandler : AudioSendHandler {
         return rms < threshold
     }
 
-    override fun provide20MsAudio(): ByteBuffer? {
-        return lastFrame.also {
-            lastFrame = null
-        }
-    }
+    override fun provide20MsAudio(): ByteBuffer? = lastFrame?.also { lastFrame = null }
 
     override fun isOpus(): Boolean = false
 
@@ -95,12 +99,5 @@ object AudioStreamHandler : AudioSendHandler {
             line = null
             println("Audio capture stopped.")
         }
-    }
-
-    private fun applyEffects(bytesRead: Int): Int {
-        // Apply effects here
-        // Example: bass boost it, wont support speed as its a stream of audio
-
-        return bytesRead
     }
 }

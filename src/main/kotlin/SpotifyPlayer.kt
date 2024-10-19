@@ -35,12 +35,17 @@ object SpotifyPlayer {
     suspend fun initialize() {
         require(spotifyPath.isNotEmpty()) { "Missing environment variable: SPOTIFY_EXE_PATH" }
 
-        webSocketServer.start()
-        ensureLocalSpotifyIsRunning()
-        webSocketServer.waitForConnection()
-        normaliseSpotify()
-        println("SpotifyPlayer: Connection established")
-        initiatePlaybackLoop()
+        try {
+            webSocketServer.start()
+            ensureLocalSpotifyIsRunning()
+            webSocketServer.waitForConnection()
+            normaliseSpotify()
+            println("SpotifyPlayer: Connection established")
+            initiatePlaybackLoop()
+        } catch (e: Exception) {
+            println("Failed to initialize Spotify: ${e.message}")
+            throw e
+        }
     }
 
     private suspend fun ensureLocalSpotifyIsRunning() {
@@ -55,16 +60,13 @@ object SpotifyPlayer {
             return ProcessHandle.allProcesses()
                 .anyMatch { it.info().command().map { cmd -> File(cmd).name }.orElse("") == "Spotify.exe" }
         }
-        return try {
-            val process = ProcessBuilder("ps", "-A").start()
-            val output = process.inputStream.bufferedReader().use { it.readText() }
 
-            // Check if spotify process exists in the output
-            output.lowercase().lines().any { line ->
-                line.contains("spotify")
-            }
+        return try {
+            val process = ProcessBuilder("pgrep", "-x", "spotify").start()
+            val exitCode = process.waitFor()
+            exitCode == 0
         } catch (e: Exception) {
-            println("Error checking processes: ${e.message}")
+            println("Error checking Spotify process: ${e.message}")
             false
         }
     }
@@ -73,16 +75,25 @@ object SpotifyPlayer {
         withContext(Dispatchers.IO) {
             if (System.getProperty("os.name").startsWith("Windows")) {
                 ProcessBuilder(spotifyPath).start()
-
             } else {
-                ProcessBuilder().command("/usr/bin/spotify").start()
+                // Fix: Properly launch Spotify on Linux
+                ProcessBuilder("spotify").start()
             }
         }
+        println("Waiting for spotify to launch")
+        var attempts = 0
         withTimeout(30.seconds) {
             while (!isLocalSpotifyRunning()) {
+                attempts++
+                if (attempts > 60) { // Add maximum attempts
+                    throw IllegalStateException("Failed to start Spotify after 60 attempts")
+                }
+                println("Waiting for Spotify... Attempt $attempts")
                 delay(500)
             }
         }
+        // Add additional delay to ensure Spotify is fully initialized
+        delay(2000)
         println("Spotify has started successfully.")
     }
 
