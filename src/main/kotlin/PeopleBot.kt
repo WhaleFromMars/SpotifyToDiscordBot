@@ -20,7 +20,7 @@ import net.dv8tion.jda.api.utils.cache.CacheFlag
 
 object PeopleBot : ListenerAdapter() {
 
-    private val logger = KotlinLogging.logger("PeopleBot")
+    val logger = KotlinLogging.logger("PeopleBot")
     val dotEnv = Dotenv.configure().ignoreIfMissing().load()
     private val token = dotEnv["DISCORD_BOT_TOKEN"]
     private val GUILD_ID = dotEnv["DISCORD_GUILD_ID"]

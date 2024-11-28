@@ -1,3 +1,5 @@
+import PeopleBot.logger
+import data.TrimmedTrack
 import helpers.EmbedHelper
 import helpers.SpotifyHelper
 import kotlinx.coroutines.delay
@@ -29,9 +31,8 @@ object PeopleCommands {
         event.reply("Now playing channel set to ${channel.asMention}").setEphemeral(true).queue()
     }
 
-    @Suppress("SYNTHETIC_PROPERTY_WITHOUT_JAVA_ORIGIN")
     fun clearQueueSlashCommand(event: SlashCommandInteractionEvent) {
-        if (SpotifyPlayer.queue.isEmpty) {
+        if (SpotifyPlayer.queue.isEmpty()) {
             event.reply("The queue is empty.").setEphemeral(true).queue()
             return
         }
@@ -155,7 +156,7 @@ object PeopleCommands {
                 val playlistName = playlist.name
                 val totalTracks = playlist.tracks.total
 
-                event.reply("Processing $totalTracks tracks from **$playlistName**.").setEphemeral(true).queue()
+                event.reply("Processing **$totalTracks** tracks from **$playlistName**.").setEphemeral(true).queue()
 
                 SpotifyHelper.addPlaylistToQueue(playlist, event.user.id)
             }
@@ -171,6 +172,19 @@ object PeopleCommands {
                 SpotifyPlayer.addToQueue(track)
                 PeopleBot.startStreaming()
                 event.reply("Added **${track.name}** to the queue.").setEphemeral(true).queue()
+            }
+
+            //album link query
+            songQuery.startsWith("https://open.spotify.com/album/") -> {
+                val albumId = songQuery.substringAfter("https://open.spotify.com/album/").substringBefore("?si")
+                val album = SpotifyHelper.getAlbum(albumId) ?: run {
+                    event.reply("Couldn't match provided link: $songQuery").setEphemeral(true).queue()
+                    return
+                }
+                val tracks = album.tracks.items.mapNotNull { it.toFullTrack()?.let { it1 -> TrimmedTrack(it1) } }
+                SpotifyPlayer.addBulkToQueue(tracks)
+                PeopleBot.startStreaming()
+                event.reply("Added **${tracks.size}** tracks from **${album.name}** to the queue")
             }
 
             // Autocomplete query

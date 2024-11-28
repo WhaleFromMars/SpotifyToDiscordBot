@@ -1,6 +1,7 @@
 package helpers
 
 import com.adamratzman.spotify.SpotifyAppApi
+import com.adamratzman.spotify.models.Album
 import com.adamratzman.spotify.models.Playlist
 import com.adamratzman.spotify.spotifyAppApi
 import data.TrackRemovalStats
@@ -32,33 +33,30 @@ object SpotifyHelper {
         return spotify.playlists.getPlaylist(playlistID)
     }
 
+    suspend fun getAlbum(albumID: String): Album? {
+        return spotify.albums.getAlbum(albumID)
+    }
+
     suspend fun addPlaylistToQueue(playlist: Playlist, requesterID: String? = null) {
         val itemsPerPage = 50
         val playlistID = playlist.id
         val totalTracks = playlist.tracks.total
-        val totalPages = (totalTracks + itemsPerPage - 1) / itemsPerPage // Calculate pages based on totalTracks
+        val totalPages = (totalTracks + itemsPerPage - 1) / itemsPerPage
         val removalStats = TrackRemovalStats()
 
         PeopleBot.startStreaming()
 
         coroutineScope {
-            // Launch all page fetches in parallel
             val fetchJobs = (0 until totalPages).map { page ->
                 launch(Dispatchers.IO + SupervisorJob()) {
-                    //                    println("Processing page $page")
                     fetchAndProcessPage(
                         page, itemsPerPage, playlistID, requesterID, removalStats
                     )
                 }
             }
 
-            fetchJobs.joinAll() // Wait for all fetch jobs to complete
-            //            delay(100)
+            fetchJobs.joinAll()
             EmbedHelper.updateEmbedMessage(forceUpdate = true)
-
-            //            println("Tracks removed due to being null: ${removalStats.nullTracks.get()}")
-            //            println("Tracks removed due to being unplayable: ${removalStats.unplayableTracks.get()}")
-            //            println("Tracks removed due to being local: ${removalStats.localTracks.get()}")
         }
     }
 
